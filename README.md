@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Course Record
 
-## Getting Started
+Log golf rounds with friends; whoever shoots the lowest score at a course holds the "course record." Centerpiece feature is a world map showing who holds what, with a Voronoi "territory" view.
 
-First, run the development server:
+Full architecture/data-model rationale: see the plan this was built from — data model, RLS design, OSM ingestion, and map/UX design decisions are all documented there.
+
+## Status
+
+Fully live against a real Supabase project — no mock data left. Every page reads/writes through RLS-protected queries, verified end-to-end against the live database (auth, group creation/joining, logging a round, and every downstream query it feeds: ledger, leaderboard, map, course detail, profile).
+
+- `supabase/migrations/0001-0004` — schema, RLS policies, `course_group_records` view, the atomic `create_group`/`redeem_invite` functions, and the OSM-shadow-field trigger. All run and verified.
+- `lib/supabase/{client,server}.ts`, `proxy.ts` — Supabase SSR client + session refresh.
+- `app/login`, `app/signup`, `app/onboarding`, `components/layout/AuthMenu.tsx` — real Supabase Auth.
+- `lib/queries.ts`, `lib/supabase/guards.ts` — shared data-fetching + auth/active-group guards used by every page.
+- `app/dashboard`, `app/leaderboard`, `app/courses`, `app/courses/[id]`, `app/log-round`, `app/map`, `app/profile/[id]` — all real data.
+- 31,645 real golf courses imported from OpenStreetMap via `scripts/ingest-osm.ts`.
+
+## Next steps
+
+- Add `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as GitHub Actions secrets so the scheduled ingestion + keepalive workflows run (currently only tested by running them locally).
+- A real browser click-through hasn't happened yet — this was built/verified from the CLI against the live DB (see conversation history). Worth a manual pass through signup → onboarding → log a round → map/leaderboard before inviting friends.
+- v1 simplifications worth knowing: only one active group is used per user (the first one joined — no group switcher yet); only 18-hole rounds count toward records; the courses search page doesn't show per-course record info inline (only on the detail page).
+
+## Getting started
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 — it redirects to `/dashboard`. Try `/map` for the centerpiece feature (toggle "Pins" vs "Territory" in the left rail).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js (App Router) + TypeScript + Tailwind + shadcn/ui, Supabase (Postgres + Auth), MapLibre GL + OpenFreeMap (free, no API key) via `react-map-gl/maplibre`, `d3-geo-voronoi` for the territory view. Deployed on Vercel.

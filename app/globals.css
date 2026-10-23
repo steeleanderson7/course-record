@@ -1,26 +1,240 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-playfair);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Brand tokens — see courserecord-heritage-brand/tokens.css (authoritative) */
+  --brand-fairway: #1b4332;
+  --brand-fairway-deep: #0f2a1f;
+  --brand-cream: #f6f1e4;
+  --brand-gold: #c9a227;
+  --brand-ink: #16281f;
+  --brand-muted: #5b6c60;
+  --brand-unclaimed: #9fafa3;
+
+  --background: var(--brand-cream);
+  --foreground: var(--brand-ink);
+  --card: #ffffff;
+  --card-foreground: var(--brand-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--brand-ink);
+  --primary: var(--brand-gold);
+  --primary-foreground: var(--brand-ink);
+  --secondary: var(--brand-cream);
+  --secondary-foreground: var(--brand-ink);
+  --muted: #efe9da;
+  --muted-foreground: var(--brand-muted);
+  --accent: rgba(201, 162, 39, 0.12);
+  --accent-foreground: var(--brand-ink);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: rgba(22, 40, 31, 0.1);
+  --input: rgba(22, 40, 31, 0.12);
+  --ring: var(--brand-gold);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.75rem;
+  --sidebar: var(--brand-fairway);
+  --sidebar-foreground: var(--brand-cream);
+  --sidebar-primary: var(--brand-gold);
+  --sidebar-primary-foreground: var(--brand-ink);
+  --sidebar-accent: rgba(201, 162, 39, 0.15);
+  --sidebar-accent-foreground: var(--brand-cream);
+  --sidebar-border: var(--brand-fairway-deep);
+  --sidebar-ring: var(--brand-gold);
+}
+
+/* No dark-mode toggle in this app — brand uses dark *sections* (nav/hero),
+   not a dark color-scheme variant — so no .dark override block. */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  a,
+  button {
+    @apply transition-colors duration-150;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Subtle lift + shadow for clickable cards — sprinkled onto specific
+     interactive surfaces (not a global Card default, so static info cards
+     don't get a pointless hover affordance). */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  /* Points/score counters, badge unlock moments, "new record" bursts. */
+  @keyframes count-pulse {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-count-pulse {
+    animation: count-pulse 0.5s ease-out;
+  }
+
+  @keyframes badge-shimmer {
+    0% {
+      box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 10px rgba(201, 162, 39, 0);
+    }
+  }
+  .animate-badge-shimmer {
+    animation: badge-shimmer 1.2s ease-out;
+  }
+
+  /* Territory map hover-scale system — exact technique from the design
+     handoff: transform-box: fill-box scales each element from its own
+     center instead of the SVG's origin, so a state in the corner doesn't
+     visibly jump when it grows. One consistent system for all three
+     interaction types (states, pins, table rows) rather than three
+     different effects. */
+  svg path[data-state] {
+    cursor: pointer;
+    transition:
+      transform 0.18s ease,
+      filter 0.18s ease;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  svg path[data-state]:hover {
+    transform: scale(1.035);
+    filter: brightness(0.96);
+  }
+
+  .cr-pin {
+    cursor: pointer;
+  }
+  .cr-pin-inner {
+    transition: transform 0.15s ease;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .cr-pin:hover .cr-pin-inner {
+    transform: scale(1.22);
+  }
+
+  a.course-row {
+    cursor: pointer;
+    display: flex;
+    border-radius: 6px;
+    transition:
+      transform 0.12s ease,
+      background-color 0.12s ease;
+  }
+  a.course-row:hover {
+    transform: scale(1.012);
+    background: rgba(201, 162, 39, 0.07);
+  }
+
+  /* Course detail page's Activity Log rows — not links, so just a quiet
+     background tint on hover rather than the scale treatment above. */
+  .activity-row {
+    transition: background-color 0.12s ease;
+  }
+  .activity-row:hover {
+    background: rgba(201, 162, 39, 0.05);
+  }
+
+  /* State drill-down map (StateMap.tsx) — a separate class system from the
+     national map's .cr-pin above, since individual courses render as small
+     dots (not flag pins) and can collapse into dynamically-computed
+     clusters here. Tooltips are their own layer, rendered after every
+     marker in the DOM, with hover driven by a per-pin CSS sibling selector
+     generated alongside them — keeps a later marker from painting over and
+     clipping an open tooltip on a dense map. */
+  .cr-map-pin {
+    cursor: pointer;
+  }
+  .cr-map-pin-dot {
+    transition: transform 0.12s ease;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .cr-map-pin:hover .cr-map-pin-dot {
+    transform: scale(1.5);
+  }
+  .cr-map-pin:hover .cr-map-pin-dot.is-cluster {
+    transform: scale(1.15);
+  }
+  .cr-map-tooltip-wrap {
+    pointer-events: none;
+  }
+  .cr-map-tooltip {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    pointer-events: none;
+  }
+  .cr-tooltip-card {
+    background: #16281f;
+    color: #f6f1e4;
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-family: "Inter", sans-serif;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+    box-sizing: border-box;
+  }
 }

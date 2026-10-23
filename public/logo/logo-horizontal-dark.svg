@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 170" width="640" height="170">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,500&amp;display=swap');
+.word { font-family: 'Playfair Display', Georgia, serif; font-weight:700; }
+.accent { font-family: 'Playfair Display', Georgia, serif; font-weight:500; font-style:italic; }
+</style>
+<g transform="translate(20,15) scale(0.7)">
+  <path d="M100,18 L168,44 L168,108 C168,150 138,176 100,192 C62,176 32,150 32,108 L32,44 Z" fill="none" stroke="#C9A227" stroke-width="10"/>
+  <line x1="100" y1="58" x2="100" y2="150" stroke="#F6F1E4" stroke-width="11" stroke-linecap="round"/>
+  <path d="M100,58 L142,76 L100,94 Z" fill="#C9A227"/>
+  <ellipse cx="100" cy="150" rx="14" ry="5" fill="#C9A227" opacity="0.55"/>
+</g>
+<text x="190" y="105" class="word" font-size="58" fill="#F6F1E4">CourseRecord<tspan class="accent" fill="#C9A227">.golf</tspan></text>
+</svg>
