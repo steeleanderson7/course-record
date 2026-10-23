@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { createClient } from "@/lib/supabase/client";
+import { redeemInvite, setActiveGroup } from "@/app/actions/groups";
 
 export default function LoginPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteCode = searchParams.get("invite");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +41,16 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
       return;
+    }
+
+    if (inviteCode) {
+      try {
+        const groupId = await redeemInvite(inviteCode);
+        await setActiveGroup(groupId);
+      } catch {
+        // An already-member re-click is a harmless no-op; a genuinely bad
+        // code shouldn't block a normal login — just continue to dashboard.
+      }
     }
 
     router.push("/dashboard");

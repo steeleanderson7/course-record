@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { createClient } from "@/lib/supabase/client";
+import { redeemInvite, setActiveGroup } from "@/app/actions/groups";
 
 const BENEFITS = [
   "Log the rounds you actually play",
@@ -18,7 +19,18 @@ const BENEFITS = [
 ];
 
 export default function SignupPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteCode = searchParams.get("invite");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +47,16 @@ export default function SignupPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: name } },
+      options: {
+        data: { display_name: name },
+        // If email confirmation is required below, there's no session yet
+        // to redeem the invite with — route the confirmation link itself
+        // back through /join/{code}, which redeems it once the user lands
+        // there authenticated.
+        emailRedirectTo: inviteCode
+          ? `${window.location.origin}/join/${encodeURIComponent(inviteCode)}`
+          : undefined,
+      },
     });
 
     if (error) {
@@ -45,6 +66,19 @@ export default function SignupPage() {
     }
 
     if (data.session) {
+      if (inviteCode) {
+        try {
+          const groupId = await redeemInvite(inviteCode);
+          await setActiveGroup(groupId);
+          router.push("/dashboard");
+          router.refresh();
+          return;
+        } catch {
+          // Invalid/expired code shouldn't block the account that was just
+          // created — fall through to onboarding so they can still join or
+          // create a group manually.
+        }
+      }
       router.push("/onboarding");
       router.refresh();
       return;

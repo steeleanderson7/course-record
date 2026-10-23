@@ -5,6 +5,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { Reveal } from "@/components/Reveal";
 import { requireActiveGroup } from "@/lib/supabase/guards";
 import { getGroupMembersDetailed } from "@/lib/queries";
+import { getSiteOrigin } from "@/lib/url";
 import { BRAND_COLORS } from "@/lib/colors";
 
 // NOTE: email invites + a "Pending" section (from courserecord-friends.html)
@@ -13,8 +14,14 @@ import { BRAND_COLORS } from "@/lib/colors";
 // backend already fully supports.
 export default async function FriendsPage() {
   const { supabase, user, group } = await requireActiveGroup();
-  const members = await getGroupMembersDetailed(supabase, group.id, user.id, group.created_by);
-  const inviteUrl = `courserecord.golf/join/${group.invite_code}`;
+  const [members, origin] = await Promise.all([
+    getGroupMembersDetailed(supabase, group.id, user.id, group.created_by),
+    getSiteOrigin(),
+  ]);
+  // Was hardcoded to "courserecord.golf" (a domain we don't actually point
+  // anywhere) — now reflects whatever domain is actually serving the
+  // request, so it keeps working if a custom domain gets added later.
+  const inviteUrl = `${origin}/join/${group.invite_code}`;
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-7 px-8 py-10">
