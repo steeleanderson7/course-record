@@ -2,9 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import { Shield, TrendingUp, Star, MapPin, Flag, Target, Crown, Gem } from "lucide-react";
 
 /**
- * The 9-badge collection from courserecord-profile.html. Criteria for
- * several of these aren't specified in the handoff — documented best
- * guesses below, easy to retune once real usage data exists:
+ * The original badge collection from courserecord-profile.html — now 8
+ * badges, not 9. Criteria for several of these aren't specified in the
+ * handoff — documented best guesses below, easy to retune once real usage
+ * data exists:
  *
  * - "Marquee Hunter" (reference: "Played Augusta National" — one specific
  *   flagship course) and "Grand Slam" (play all 4 major-championship
@@ -14,6 +15,12 @@ import { Shield, TrendingUp, Star, MapPin, Flag, Target, Crown, Gem } from "luci
  *   in.
  * - "Perfect Round" — reference shows a specific best score-to-par, not a
  *   fixed threshold; interpreted here as "broke par at least once."
+ *
+ * "Top 100 Club — Silver" was retired from here once the new 100-badge
+ * tiered system (lib/badgeCatalog.ts, data/badges.json) shipped — its
+ * top-100-played family properly tiers the same underlying metric
+ * (marqueeCoursesPlayed) across all 5 tiers instead of this one hardcoded
+ * second rung, so keeping both would just show the same progress twice.
  */
 export type BadgeStats = {
   recordsHeld: number;
@@ -76,13 +83,6 @@ export const BADGE_COLLECTION: BadgeDef[] = [
     icon: Target,
     description: (s) => (s.bestScoreToPar != null ? `Best: ${s.bestScoreToPar} to par` : "Break par in a round"),
     earned: (s) => s.bestScoreToPar != null && s.bestScoreToPar < 0,
-  },
-  {
-    id: "top-100-club-silver",
-    name: "Top 100 Club — Silver",
-    icon: Star,
-    description: (s) => `${s.marqueeCoursesPlayed} of 10 marquee courses played`,
-    earned: (s) => s.marqueeCoursesPlayed >= 10,
   },
   {
     id: "scratch",

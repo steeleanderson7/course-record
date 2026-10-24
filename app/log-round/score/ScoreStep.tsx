@@ -29,6 +29,12 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
   const [datePlayed, setDatePlayed] = useState(() => new Date().toISOString().slice(0, 10));
   const [tees, setTees] = useState("");
   const [holes, setHoles] = useState<"18" | "9">("18");
+  // Kept as strings (not numbers) so an empty field is distinguishable from
+  // an explicit 0 — "didn't report" vs. "reported zero" — even though both
+  // coalesce to 0 in the lifetime badge totals either way.
+  const [birdies, setBirdies] = useState("");
+  const [eaglesPlus, setEaglesPlus] = useState("");
+  const [aces, setAces] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +49,9 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
         holesPlayed: Number(holes) as 9 | 18,
         datePlayed,
         notes: tees ? `Tees: ${tees}` : undefined,
+        birdies: birdies ? Number(birdies) : undefined,
+        eaglesPlus: eaglesPlus ? Number(eaglesPlus) : undefined,
+        aces: aces ? Number(aces) : undefined,
       });
       const params = new URLSearchParams({
         courseId: course.id,
@@ -102,6 +111,37 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
         <p className="text-xs text-muted-foreground">
           Only 18-hole rounds count toward the course record.
         </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Notable shots (optional)</Label>
+        <div className="grid grid-cols-3 gap-3">
+          <Input
+            type="number"
+            min={0}
+            placeholder="Birdies"
+            aria-label="Birdies"
+            value={birdies}
+            onChange={(e) => setBirdies(e.target.value)}
+          />
+          <Input
+            type="number"
+            min={0}
+            placeholder="Eagles+"
+            aria-label="Eagles or better"
+            value={eaglesPlus}
+            onChange={(e) => setEaglesPlus(e.target.value)}
+          />
+          <Input
+            type="number"
+            min={0}
+            placeholder="Holes-in-one"
+            aria-label="Holes-in-one"
+            value={aces}
+            onChange={(e) => setAces(e.target.value)}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">Counts toward your Scoring badges — leave blank if you&apos;re not tracking these.</p>
       </div>
 
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-8">

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/StatTile";
@@ -125,11 +126,16 @@ export default async function ProfilePage({
 
       {/* Badge collection */}
       <div className="space-y-4">
-        <div>
-          <p className="font-heading text-[22px] font-bold">Badge Collection</p>
-          <p className="text-sm text-muted-foreground">
-            {earnedCount} of {BADGE_COLLECTION.length} badges earned
-          </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <p className="font-heading text-[22px] font-bold">Badge Collection</p>
+            <p className="text-sm text-muted-foreground">
+              {earnedCount} of {BADGE_COLLECTION.length} badges earned
+            </p>
+          </div>
+          <Link href={`/profile/${id}/badges`} className="text-sm font-bold text-primary hover:underline">
+            View all 100 tiered badges →
+          </Link>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {BADGE_COLLECTION.map((badge, i) => {

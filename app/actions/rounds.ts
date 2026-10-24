@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { recomputeOwnMetrics } from "@/lib/badgeMetrics";
 
 type CreateRoundInput = {
   groupId: string;
@@ -9,6 +10,9 @@ type CreateRoundInput = {
   holesPlayed: 9 | 18;
   datePlayed: string;
   notes?: string;
+  birdies?: number;
+  eaglesPlus?: number;
+  aces?: number;
 };
 
 export type CreateRoundResult = {
@@ -50,6 +54,9 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
       holes_played: input.holesPlayed,
       date_played: input.datePlayed,
       notes: input.notes,
+      birdies: input.birdies ?? null,
+      eagles_plus: input.eaglesPlus ?? null,
+      aces: input.aces ?? null,
     })
     .select()
     .single();
@@ -61,6 +68,20 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
   const isMarquee = course?.is_marquee ?? false;
 
   const pointsEarned = 50 + (isNewRecord ? 100 : 0) + (isMarquee ? 200 : 0);
+
+  // Badge progress is a bonus layer, not core functionality — never let a
+  // metrics bug fail the round-logging flow itself. Awaited rather than
+  // fire-and-forget: a serverless function instance can be torn down the
+  // moment the response is sent, which would silently kill an un-awaited
+  // promise before it finishes.
+  try {
+    await recomputeOwnMetrics(supabase, user.id);
+    if (priorHolderWasSomeoneElse) {
+      await supabase.rpc("apply_record_change_metrics", { p_round_id: data.id });
+    }
+  } catch (err) {
+    console.error("Badge metrics recompute failed (non-fatal):", err);
+  }
 
   return {
     roundId: data.id,
