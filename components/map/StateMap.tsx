@@ -99,8 +99,12 @@ function clusterDomId(index: number) {
   return `cluster-${index}`;
 }
 
+// Calibrated against the design handoff's 13/15/18px examples for
+// 2/3/6-course clusters (sqrt growth, not linear, so radius keeps rising
+// gently rather than ballooning once a state has hundreds of courses
+// collapsing into one badge — the whole point of clustering at all).
 function clusterRadius(count: number): number {
-  return Math.min(24, 10 + count);
+  return Math.min(26, 8 + 5 * Math.sqrt(count - 1));
 }
 
 /** No curated micro-region names exist in the data (the reference's "Wasatch
@@ -121,10 +125,11 @@ function holderLabel(pin: CoursePin, currentUserId: string): string {
 
 // Same flag-on-a-pin shape as the national map's .cr-pin (triangle tail +
 // circle head, with a little flag-on-a-pole accent for your own courses and
-// a white dot for everyone else's) — scaled to 0.625x the national size
-// (0.5x initially, bumped 25% per feedback that it read too small), so it
-// still reads as the same icon family without ballooning on a map meant to
-// hold hundreds of courses per state.
+// a white dot for everyone else's) — scaled to 0.8x the national size (was
+// 0.5x, then 0.625x, now bumped to land the circle head exactly on the
+// handoff's new 8px-radius target), so it still reads as the same icon
+// family without ballooning on a map meant to hold hundreds of courses per
+// state.
 function CourseMarker({ pin, currentUserId }: { pin: ProjectedPin; currentUserId: string }) {
   const color = pin.holder?.color ?? "none";
   const isYou = pin.holder?.id === currentUserId;
@@ -133,28 +138,28 @@ function CourseMarker({ pin, currentUserId }: { pin: ProjectedPin; currentUserId
       <g transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
         <g className="cr-map-pin-dot">
           <path
-            d="M-3.44,-3.75 L0,1.25 L3.44,-3.75 Z"
+            d="M-4.4,-4.8 L0,1.6 L4.4,-4.8 Z"
             fill={pin.holder ? color : BRAND_COLORS.cream}
             stroke={pin.holder ? undefined : BRAND_COLORS.unclaimed}
-            strokeWidth={pin.holder ? 0 : 1}
-            strokeDasharray={pin.holder ? undefined : "1.5 1.5"}
+            strokeWidth={pin.holder ? 0 : 1.2}
+            strokeDasharray={pin.holder ? undefined : "2 2"}
           />
           <circle
             cx={0}
-            cy={-6.875}
-            r={6.25}
+            cy={-8.8}
+            r={8}
             fill={pin.holder ? color : BRAND_COLORS.cream}
             stroke={pin.holder ? "#FFFFFF" : BRAND_COLORS.unclaimed}
-            strokeWidth={pin.holder ? 1.25 : 1}
-            strokeDasharray={pin.holder ? undefined : "1.5 1.5"}
+            strokeWidth={pin.holder ? 1.6 : 1.2}
+            strokeDasharray={pin.holder ? undefined : "2 2"}
           />
           {isYou && (
             <>
-              <line x1={0} y1={-11.25} x2={0} y2={-3.75} stroke={BRAND_COLORS.ink} strokeWidth={1} strokeLinecap="round" />
-              <path d="M0,-11.25 L3.44,-9.38 L0,-7.81 Z" fill={BRAND_COLORS.ink} />
+              <line x1={0} y1={-14.4} x2={0} y2={-4.8} stroke={BRAND_COLORS.ink} strokeWidth={1.28} strokeLinecap="round" />
+              <path d="M0,-14.4 L4.4,-12 L0,-10 Z" fill={BRAND_COLORS.ink} />
             </>
           )}
-          {pin.holder && !isYou && <circle cx={0} cy={-6.875} r={1.75} fill="#FFFFFF" />}
+          {pin.holder && !isYou && <circle cx={0} cy={-8.8} r={2.24} fill="#FFFFFF" />}
         </g>
       </g>
     </a>
@@ -178,8 +183,8 @@ function ClusterMarker({ id, cluster }: { id: string; cluster: ClusterGroup<Proj
 function CourseTooltip({ pin, currentUserId }: { pin: ProjectedPin; currentUserId: string }) {
   const width = 168;
   const height = 58;
-  // Icon's circle head tops out at cy(-6.875) - r(6.25) = -13.125; +8px breathing room above that.
-  const gap = 13.125 + 8;
+  // Icon's circle head tops out at cy(-8.8) - r(8) = -16.8; +8px breathing room above that.
+  const gap = 16.8 + 8;
   return (
     <g className="cr-map-tooltip-wrap" data-for={pinDomId(pin.course.id)} transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
       <foreignObject className="cr-map-tooltip" x={-width / 2} y={-(height + gap)} width={width} height={height} style={{ overflow: "visible" }}>

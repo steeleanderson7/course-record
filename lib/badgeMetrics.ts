@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findState } from "@/lib/geo/us-projection";
+import { countEarnedBadges } from "@/lib/badgeCatalog";
 
 /** Thin wrapper around get_player_metrics, returning a plain {metric: value}
  *  map instead of rows — the shape every caller actually wants (the badges
@@ -12,6 +13,22 @@ export async function getPlayerMetricsMap(
   const { data, error } = await supabase.rpc("get_player_metrics", { p_target_user_id: userId });
   if (error) throw error;
   return Object.fromEntries((data ?? []).map((r: { metric: string; value: number }) => [r.metric, r.value]));
+}
+
+/** Total earned-badge count for every member of a group, in parallel (fine
+ *  at friend-group scale, same posture as getGroupLifetimeStats). Built
+ *  directly on getPlayerMetricsMap + countEarnedBadges — the exact pipeline
+ *  that powers the Badge Collection page — so the Territory Map's National
+ *  Leaderboard card can never drift into a second, separate way of counting
+ *  badges. */
+export async function getGroupBadgeCounts(
+  supabase: SupabaseClient,
+  memberIds: string[]
+): Promise<Record<string, number>> {
+  const entries = await Promise.all(
+    memberIds.map(async (id) => [id, countEarnedBadges(await getPlayerMetricsMap(supabase, id))] as const)
+  );
+  return Object.fromEntries(entries);
 }
 
 /**

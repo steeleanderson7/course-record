@@ -16,9 +16,25 @@ type Props = {
   currentUserId: string;
   /** When set (state drill-down page), restrict to this state and skip aggregation. */
   focusState?: string;
+  /** National Leaderboard's "played" column — same getGroupLifetimeStats
+   *  source already used by /leaderboard, keyed by friend id. Only ever
+   *  populated on the national (!focusState) map page. */
+  roundsPlayedByFriend?: Record<string, number>;
+  /** National Leaderboard's "badges" column — same get_player_metrics +
+   *  countEarnedBadges pipeline that powers the Badge Collection page, so
+   *  this can never drift into a second way of counting badges. */
+  badgeCountByFriend?: Record<string, number>;
 };
 
-export function TerritoryMapClient({ courses, records, friends, currentUserId, focusState }: Props) {
+export function TerritoryMapClient({
+  courses,
+  records,
+  friends,
+  currentUserId,
+  focusState,
+  roundsPlayedByFriend,
+  badgeCountByFriend,
+}: Props) {
   const [activeFriendId, setActiveFriendId] = useState<string | "all">("all");
 
   const { pins, badgePins, loosePins, countByFriend, unclaimedCount } = useTerritoryPins(
@@ -59,33 +75,32 @@ export function TerritoryMapClient({ courses, records, friends, currentUserId, f
 
             {badgePins.map((b) => (
               <a key={b.stateName} href={`/map/${stateNameToSlug(b.stateName)}`}>
-                <g transform={`translate(${b.xy[0]},${b.xy[1]})`}>
-                  <circle cx={0} cy={-15} r={19} fill={BRAND_COLORS.fairway} stroke={BRAND_COLORS.gold} strokeWidth={2.5} />
-                  <text x={0} y={-11} textAnchor="middle" fontWeight={700} fontSize={13} fill={BRAND_COLORS.cream}>
-                    {b.count}
-                  </text>
-                  <path d="M-6,3 L0,13 L6,3 Z" fill={BRAND_COLORS.fairway} stroke={BRAND_COLORS.gold} strokeWidth={2.5} />
+                <g className="cr-pin" transform={`translate(${b.xy[0]},${b.xy[1]})`}>
+                  <g className="cr-pin-inner is-cluster">
+                    <circle cx={0} cy={0} r={19} fill={BRAND_COLORS.fairway} stroke={BRAND_COLORS.gold} strokeWidth={2.5} />
+                    <text x={0} y={5} textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight={700} fontSize={14} fill={BRAND_COLORS.cream}>
+                      {b.count}
+                    </text>
+                  </g>
                 </g>
               </a>
             ))}
 
             {loosePins.map((p) => {
               const color = p.holder?.color ?? "none";
-              const isYou = p.holder?.id === currentUserId;
               return (
                 <a key={p.course.id} href={`/courses/${p.course.id}`}>
                   <g className="cr-pin" transform={`translate(${p.xy[0]},${p.xy[1]})`}>
-                    <g className="cr-pin-inner">
-                      <path d="M-5.5,-6 L0,2 L5.5,-6 Z" fill={p.holder ? color : BRAND_COLORS.cream} stroke={p.holder ? undefined : BRAND_COLORS.unclaimed} strokeWidth={p.holder ? 0 : 1.5} strokeDasharray={p.holder ? undefined : "2.5 2.5"} />
-                      <circle cx={0} cy={-11} r={10} fill={p.holder ? color : BRAND_COLORS.cream} stroke={p.holder ? "#FFFFFF" : BRAND_COLORS.unclaimed} strokeWidth={p.holder ? 2 : 1.5} strokeDasharray={p.holder ? undefined : "2.5 2.5"} />
-                      {isYou && (
-                        <>
-                          <line x1={0} y1={-18} x2={0} y2={-6} stroke={BRAND_COLORS.ink} strokeWidth={1.6} strokeLinecap="round" />
-                          <path d="M0,-18 L5.5,-15 L0,-12.5 Z" fill={BRAND_COLORS.ink} />
-                        </>
-                      )}
-                      {p.holder && !isYou && <circle cx={0} cy={-11} r={2.8} fill="#FFFFFF" />}
-                    </g>
+                    <circle
+                      className="cr-pin-inner"
+                      cx={0}
+                      cy={0}
+                      r={8}
+                      fill={p.holder ? color : BRAND_COLORS.cream}
+                      stroke={p.holder ? "#FFFFFF" : BRAND_COLORS.unclaimed}
+                      strokeWidth={1.8}
+                      strokeDasharray={p.holder ? undefined : "2.5 2.5"}
+                    />
                   </g>
                 </a>
               );
@@ -100,6 +115,37 @@ export function TerritoryMapClient({ courses, records, friends, currentUserId, f
         {unclaimedCount > 0 && <LegendDot dashed label={`Unclaimed · ${unclaimedCount}`} />}
       </div>
     </div>
+  );
+
+  // Both leaderboards sort by countByFriend — the exact same tally already
+  // driving the legend's color-swatch counts below the map — so a leaderboard
+  // can never disagree with the legend. .sort() is stable (ES2019+), so ties
+  // keep `friends`' own insertion order rather than an arbitrary one.
+  const leaderboardCard = focusState ? (
+    <LeaderboardCard
+      title={`${focusState} Leaderboard`}
+      subtitle="Ranked by course records held in this state"
+      entries={friends
+        .map((f) => ({
+          friend: f,
+          isYou: f.id === currentUserId,
+          primary: countByFriend.get(f.id) ?? 0,
+        }))
+        .sort((a, b) => b.primary - a.primary)}
+    />
+  ) : (
+    <LeaderboardCard
+      title="National Leaderboard"
+      subtitle="Ranked by total course records held"
+      entries={friends
+        .map((f) => ({
+          friend: f,
+          isYou: f.id === currentUserId,
+          primary: countByFriend.get(f.id) ?? 0,
+          secondary: `${badgeCountByFriend?.[f.id] ?? 0} badges · ${roundsPlayedByFriend?.[f.id] ?? 0} played`,
+        }))
+        .sort((a, b) => b.primary - a.primary)}
+    />
   );
 
   const allCoursesCard = (
@@ -154,24 +200,18 @@ export function TerritoryMapClient({ courses, records, friends, currentUserId, f
         ))}
       </div>
 
-      {focusState ? (
-        // State view: map and course list side by side — map gets the
-        // larger ~60% share since the state SVG is tall/narrow and was
-        // wasting a lot of vertical whitespace stacked full-width above an
-        // equally full-width table; pairing them lets the list fill that
-        // space instead. Wraps to stacked below the breakpoint implied by
-        // the basis widths, same as the Dashboard/CourseDetail two-column
-        // sections elsewhere in the app.
-        <div className="flex flex-wrap items-start gap-7">
-          <div className="min-w-0 flex-[3_1_480px]">{mapCard}</div>
-          <div className="min-w-0 flex-[2_1_360px]">{allCoursesCard}</div>
-        </div>
-      ) : (
-        <>
-          {mapCard}
-          {allCoursesCard}
-        </>
-      )}
+      {/* Map + leaderboard side by side — state view keeps its existing
+          ~60/40 split (the state SVG is tall/narrow and was wasting vertical
+          whitespace stacked full-width); the national map's wide/short SVG
+          gets the Dashboard's usual dominant-column ratio instead, since it
+          didn't have that problem and previously had no sidebar at all.
+          Both wrap to stacked below the breakpoint implied by the basis
+          widths. All Courses stays full-width beneath either layout. */}
+      <div className="flex flex-wrap items-start gap-7">
+        <div className={`min-w-0 ${focusState ? "flex-[3_1_480px]" : "flex-[999_1_560px]"}`}>{mapCard}</div>
+        <div className={`min-w-0 ${focusState ? "flex-[2_1_360px]" : "flex-[1_1_300px]"}`}>{leaderboardCard}</div>
+      </div>
+      {allCoursesCard}
     </div>
   );
 }
@@ -194,6 +234,62 @@ function FilterPill({
     >
       {children}
     </button>
+  );
+}
+
+type LeaderboardEntry = {
+  friend: Friend;
+  isYou: boolean;
+  primary: number;
+  /** National Leaderboard's "N badges · M played" line; state leaderboard omits it. */
+  secondary?: string;
+};
+
+function LeaderboardCard({
+  title,
+  subtitle,
+  entries,
+}: {
+  title: string;
+  subtitle: string;
+  entries: LeaderboardEntry[];
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-card p-6">
+      <p className="font-heading text-lg font-bold">{title}</p>
+      <p className="mb-2 text-xs text-muted-foreground">{subtitle}</p>
+      {entries.map((entry, i) => (
+        <div
+          key={entry.friend.id}
+          className={`flex items-center gap-2.5 border-b border-border/60 py-2.5 last:border-b-0 ${
+            entry.isYou ? "-mx-2.5 rounded-md bg-primary/[0.08] px-2.5" : ""
+          }`}
+        >
+          <span
+            className="font-heading w-3.5 flex-none text-[15px] font-bold"
+            style={{ color: entry.isYou ? BRAND_COLORS.gold : BRAND_COLORS.muted }}
+          >
+            {i + 1}
+          </span>
+          <span
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-[11px] font-bold"
+            style={{ backgroundColor: entry.friend.color, color: entry.isYou ? BRAND_COLORS.ink : "#fff" }}
+          >
+            {entry.friend.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className={`block truncate text-sm ${entry.isYou ? "font-bold" : "font-semibold"}`}>
+              {entry.friend.name}
+              {entry.isYou ? " (you)" : ""}
+            </span>
+            {entry.secondary && (
+              <span className="block truncate text-[11px] text-muted-foreground">{entry.secondary}</span>
+            )}
+          </span>
+          <span className="flex-none text-[15px] font-bold">{entry.primary}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
