@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireActiveGroup } from "@/lib/supabase/guards";
 import { buildFamilyProgress, CATEGORY_ORDER, type FamilyProgress, type TierProgress } from "@/lib/badgeCatalog";
+import { getPlayerMetricsMap } from "@/lib/badgeMetrics";
 import { BadgeCategoryFilter } from "@/components/badges/BadgeCategoryFilter";
+import { HashScrollOnMount } from "@/components/badges/HashScrollOnMount";
 import { Reveal } from "@/components/Reveal";
 import { BRAND_COLORS } from "@/lib/colors";
 
@@ -19,12 +21,7 @@ export default async function BadgeCollectionPage({
   const { data: profile } = await supabase.from("profiles").select("id").eq("id", id).maybeSingle();
   if (!profile) notFound();
 
-  const { data: metricRows, error } = await supabase.rpc("get_player_metrics", { p_target_user_id: id });
-  if (error) throw error;
-
-  const metrics = Object.fromEntries(
-    (metricRows ?? []).map((r: { metric: string; value: number }) => [r.metric, r.value])
-  );
+  const metrics = await getPlayerMetricsMap(supabase, id);
   const families = buildFamilyProgress(metrics);
   const totalEarned = families.reduce((sum, f) => sum + f.earnedCount, 0);
 
@@ -85,13 +82,14 @@ export default async function BadgeCollectionPage({
       </div>
 
       <BadgeCategoryFilter categories={CATEGORY_ORDER} sections={sections} />
+      <HashScrollOnMount />
     </div>
   );
 }
 
 function FamilyCard({ family }: { family: FamilyProgress }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-6">
+    <div id={`family-${family.familyId}`} className="flex scroll-mt-6 flex-col gap-3.5 rounded-2xl border border-border bg-card p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-heading text-[17px] font-bold">{family.familyTitle}</span>
         <span className="text-xs font-bold text-muted-foreground">{family.earnedCount}/5 earned</span>

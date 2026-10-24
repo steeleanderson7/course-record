@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { recomputeOwnMetrics } from "@/lib/badgeMetrics";
+import { recomputeOwnMetrics, getPlayerMetricsMap } from "@/lib/badgeMetrics";
+import { diffNewlyEarnedBadges, countEarnedBadges, type Badge } from "@/lib/badgeCatalog";
 
 type CreateRoundInput = {
   groupId: string;
@@ -22,6 +23,16 @@ export type CreateRoundResult = {
   previousScore: number | null;
   pointsEarned: number;
   isMarquee: boolean;
+  /** Badges this round pushed past a tier, highest tier first — queued by
+   *  the celebration overlay, one at a time. Only ever reflects the acting
+   *  user's own badges: if this round took a record from someone else, that
+   *  person's own player_metrics updates correctly (see
+   *  apply_record_change_metrics) but they aren't present in this request
+   *  to show a live popup to — no realtime/push infra exists in this app to
+   *  deliver one. They'll see it next time they check their own
+   *  Dashboard/Badges page. Documented v1 limit, not solved here. */
+  newlyEarnedBadges: Badge[];
+  totalEarnedCount: number;
 };
 
 export async function createRound(input: CreateRoundInput): Promise<CreateRoundResult> {
@@ -34,7 +45,10 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
   // Snapshot the record *before* inserting, so we can tell the celebration
   // screen whether this round changed anything and who (if anyone) it
   // unseated — course_group_records only reflects the post-insert state.
-  const [{ data: priorRecord }, { data: course }] = await Promise.all([
+  // metricsBefore rides along in the same Promise.all — independent of the
+  // other two, so the badge-earned diff's "before" snapshot costs no extra
+  // latency.
+  const [{ data: priorRecord }, { data: course }, metricsBefore] = await Promise.all([
     supabase
       .from("course_group_records")
       .select("holder_user_id, score, profiles(display_name)")
@@ -42,6 +56,7 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
       .eq("group_id", input.groupId)
       .maybeSingle(),
     supabase.from("courses").select("is_marquee").eq("id", input.courseId).single(),
+    getPlayerMetricsMap(supabase, user.id).catch(() => ({}) as Record<string, number>),
   ]);
 
   const { data, error } = await supabase
@@ -74,11 +89,16 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
   // fire-and-forget: a serverless function instance can be torn down the
   // moment the response is sent, which would silently kill an un-awaited
   // promise before it finishes.
+  let newlyEarnedBadges: Badge[] = [];
+  let totalEarnedCount = countEarnedBadges(metricsBefore);
   try {
     await recomputeOwnMetrics(supabase, user.id);
     if (priorHolderWasSomeoneElse) {
       await supabase.rpc("apply_record_change_metrics", { p_round_id: data.id });
     }
+    const metricsAfter = await getPlayerMetricsMap(supabase, user.id);
+    newlyEarnedBadges = diffNewlyEarnedBadges(metricsBefore, metricsAfter);
+    totalEarnedCount = countEarnedBadges(metricsAfter);
   } catch (err) {
     console.error("Badge metrics recompute failed (non-fatal):", err);
   }
@@ -93,6 +113,8 @@ export async function createRound(input: CreateRoundInput): Promise<CreateRoundR
     previousScore: isNewRecord && priorRecord ? priorRecord.score : null,
     pointsEarned,
     isMarquee,
+    newlyEarnedBadges,
+    totalEarnedCount,
   };
 }
 

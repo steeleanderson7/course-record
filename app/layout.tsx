@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import { NavBar } from "@/components/layout/NavBar";
+import { BadgeCelebrationProvider } from "@/components/badges/BadgeCelebrationProvider";
+import { getNavContext } from "@/lib/supabase/guards";
 import "./globals.css";
 
 // Brand fonts (see courserecord-handoff-heritage/courserecord-brand-board.html):
@@ -23,15 +25,22 @@ export const metadata: Metadata = {
   description: "Log the rounds you actually play, battle your friends for course records, and watch your territory grow with every win.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // getNavContext is cache()-wrapped (lib/supabase/guards.ts), so calling it
+  // here in addition to NavBar's own internal call collapses into one real
+  // auth.getUser() round trip per request, not two.
+  const { user } = await getNavContext();
+
   return (
     <html
       lang="en"
       className={`${playfairDisplay.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <NavBar />
-        <main className="flex flex-1 flex-col">{children}</main>
+        <BadgeCelebrationProvider viewerId={user?.id ?? null}>
+          <NavBar />
+          <main className="flex flex-1 flex-col">{children}</main>
+        </BadgeCelebrationProvider>
       </body>
     </html>
   );

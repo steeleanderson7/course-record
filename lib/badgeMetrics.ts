@@ -1,6 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findState } from "@/lib/geo/us-projection";
 
+/** Thin wrapper around get_player_metrics, returning a plain {metric: value}
+ *  map instead of rows — the shape every caller actually wants (the badges
+ *  page, the dashboard teaser, and the before/after snapshots the
+ *  badge-earned celebration diffs against in app/actions/rounds.ts). */
+export async function getPlayerMetricsMap(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Record<string, number>> {
+  const { data, error } = await supabase.rpc("get_player_metrics", { p_target_user_id: userId });
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map((r: { metric: string; value: number }) => [r.metric, r.value]));
+}
+
 /**
  * Recomputes every "recompute from scratch" badge metric for one user from
  * their own rounds+courses history, and writes the result via

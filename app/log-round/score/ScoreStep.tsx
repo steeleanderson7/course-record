@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WizardProgress } from "@/components/log-round/WizardProgress";
 import { createRound } from "@/app/actions/rounds";
+import { useBadgeCelebration } from "@/components/badges/BadgeCelebrationProvider";
 import { BRAND_COLORS } from "@/lib/colors";
 
 type Props = {
@@ -25,6 +26,7 @@ function relativeToPar(score: number, par: number): string {
 
 export function ScoreStep({ groupId, course, currentRecord }: Props) {
   const router = useRouter();
+  const { pushEarnedBadges } = useBadgeCelebration();
   const [score, setScore] = useState(course.par ?? 80);
   const [datePlayed, setDatePlayed] = useState(() => new Date().toISOString().slice(0, 10));
   const [tees, setTees] = useState("");
@@ -62,6 +64,14 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
       });
       if (result.previousHolderName) params.set("previousHolderName", result.previousHolderName);
       if (result.previousScore != null) params.set("previousScore", String(result.previousScore));
+
+      // Queued before navigating — the celebration overlay lives in the
+      // root layout, so it survives the push below and renders on top of
+      // the result page.
+      pushEarnedBadges(
+        result.newlyEarnedBadges.map((badge) => ({ badge, totalEarnedCount: result.totalEarnedCount }))
+      );
+
       router.push(`/log-round/result?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not log that round.");

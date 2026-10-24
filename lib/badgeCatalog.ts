@@ -153,3 +153,24 @@ export function buildFamilyProgress(metrics: Record<string, number>): FamilyProg
 
   return families;
 }
+
+/**
+ * Every badge newly crossed between two metric snapshots — e.g. right
+ * before and right after a round is logged — sorted highest tier first so
+ * a multi-badge event leads with its most impressive moment. Both sides
+ * default missing metrics to 0, which matters most on a player's very
+ * first-ever snapshot: get_player_metrics returns zero ROWS then (not just
+ * zero values), and without this an entirely new player would silently
+ * miss every Bronze badge their first round earns.
+ */
+export function diffNewlyEarnedBadges(before: Record<string, number>, after: Record<string, number>): Badge[] {
+  return ALL_BADGES.filter(
+    (b) => (before[b.metric] ?? 0) < b.threshold && (after[b.metric] ?? 0) >= b.threshold
+  ).sort((a, b) => b.tier - a.tier);
+}
+
+/** Total badges earned across all 20 families, for the celebration card's
+ *  "N of 100 badges collected" line (and reused by the dashboard teaser). */
+export function countEarnedBadges(metrics: Record<string, number>): number {
+  return buildFamilyProgress(metrics).reduce((sum, f) => sum + f.earnedCount, 0);
+}

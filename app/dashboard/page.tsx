@@ -9,7 +9,8 @@ import {
 import { activityText } from "@/lib/activityText";
 import { formatRelativeTime, formatTodayLong } from "@/lib/relativeTime";
 import { BRAND_COLORS } from "@/lib/colors";
-import { buildFamilyProgress } from "@/lib/badgeCatalog";
+import { countEarnedBadges } from "@/lib/badgeCatalog";
+import { getPlayerMetricsMap } from "@/lib/badgeMetrics";
 import { LevelProgress } from "@/components/LevelProgress";
 import { StatTile } from "@/components/StatTile";
 import { DashboardTerritoryPreview } from "@/components/map/DashboardTerritoryPreview";
@@ -20,12 +21,12 @@ const TOTAL_BADGES = 100;
 export default async function DashboardPage() {
   const { supabase, user, group } = await requireActiveGroup();
 
-  const [{ data: profile }, friends, { records, courses }, activity, { data: metricRows }] = await Promise.all([
+  const [{ data: profile }, friends, { records, courses }, activity, metrics] = await Promise.all([
     supabase.from("profiles").select("display_name").eq("id", user.id).single(),
     getGroupMembers(supabase, group.id, user.id),
     getGroupRecords(supabase, group.id),
     getGroupActivityFeed(supabase, group.id, user.id, 5),
-    supabase.rpc("get_player_metrics", { p_target_user_id: user.id }),
+    getPlayerMetricsMap(supabase, user.id),
   ]);
 
   const lifetimeByMember = await getGroupLifetimeStats(supabase, friends.map((f) => f.id));
@@ -47,10 +48,7 @@ export default async function DashboardPage() {
   // gamification driver going forward), not the older 8-badge collection —
   // that one still lives further down the Profile page, but shouldn't be
   // the number someone sees first after logging in anymore.
-  const metrics = Object.fromEntries(
-    (metricRows ?? []).map((r: { metric: string; value: number }) => [r.metric, r.value])
-  );
-  const earnedBadgeCount = buildFamilyProgress(metrics).reduce((sum, f) => sum + f.earnedCount, 0);
+  const earnedBadgeCount = countEarnedBadges(metrics);
 
   const today = formatTodayLong();
 

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -61,9 +62,15 @@ export async function requireActiveGroup() {
 /**
  * Non-redirecting version for the NavBar, which renders on every page
  * (including logged-out marketing/login/signup pages, and mid-onboarding
- * before a user has any group yet).
+ * before a user has any group yet). Now also called once per request from
+ * the root layout (for the badge-earned celebration's viewer id) — wrapped
+ * in React's cache() so those two call sites collapse into one real
+ * auth.getUser() round trip instead of two, request-scoped (never leaks
+ * across requests). This is the first use of cache() in the app; nothing
+ * else here is request-deduped yet (requireActiveGroup() still isn't), so
+ * don't assume this pattern applies elsewhere without adding it.
  */
-export async function getNavContext() {
+export const getNavContext = cache(async function getNavContext() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -103,4 +110,4 @@ export async function getNavContext() {
     user: { id: user.id, displayName: profile?.display_name ?? null },
     group: (fallback?.groups as unknown as { id: string; name: string } | undefined) ?? null,
   };
-}
+});
