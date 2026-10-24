@@ -9,20 +9,23 @@ import {
 import { activityText } from "@/lib/activityText";
 import { formatRelativeTime, formatTodayLong } from "@/lib/relativeTime";
 import { BRAND_COLORS } from "@/lib/colors";
-import { BADGE_COLLECTION, type BadgeStats } from "@/lib/badges";
+import { buildFamilyProgress } from "@/lib/badgeCatalog";
 import { LevelProgress } from "@/components/LevelProgress";
 import { StatTile } from "@/components/StatTile";
 import { DashboardTerritoryPreview } from "@/components/map/DashboardTerritoryPreview";
 import { Reveal } from "@/components/Reveal";
 
+const TOTAL_BADGES = 100;
+
 export default async function DashboardPage() {
   const { supabase, user, group } = await requireActiveGroup();
 
-  const [{ data: profile }, friends, { records, courses }, activity] = await Promise.all([
+  const [{ data: profile }, friends, { records, courses }, activity, { data: metricRows }] = await Promise.all([
     supabase.from("profiles").select("display_name").eq("id", user.id).single(),
     getGroupMembers(supabase, group.id, user.id),
     getGroupRecords(supabase, group.id),
     getGroupActivityFeed(supabase, group.id, user.id, 5),
+    supabase.rpc("get_player_metrics", { p_target_user_id: user.id }),
   ]);
 
   const lifetimeByMember = await getGroupLifetimeStats(supabase, friends.map((f) => f.id));
@@ -40,17 +43,14 @@ export default async function DashboardPage() {
     .sort((a, b) => b.records - a.records || b.points - a.points)
     .slice(0, 5);
 
-  const badgeStats: BadgeStats = {
-    recordsHeld: yourLifetime?.recordsHeld ?? 0,
-    roundsPlayed: yourLifetime?.roundsPlayed ?? 0,
-    marqueeCoursesPlayed: yourLifetime?.marqueeCoursesPlayed ?? 0,
-    statesPlayed: yourLifetime?.statesPlayed ?? 0,
-    points: yourLifetime?.points ?? 0,
-    bestScoreToPar: null, // dashboard teaser only needs the count, not the full badge grid's criteria
-    playedFlagshipCourse: false,
-    playedAllMajorVenues: false,
-  };
-  const earnedBadgeCount = BADGE_COLLECTION.filter((b) => b.earned(badgeStats)).length;
+  // Dashboard teaser now reflects the 100-badge tiered system (the main
+  // gamification driver going forward), not the older 8-badge collection —
+  // that one still lives further down the Profile page, but shouldn't be
+  // the number someone sees first after logging in anymore.
+  const metrics = Object.fromEntries(
+    (metricRows ?? []).map((r: { metric: string; value: number }) => [r.metric, r.value])
+  );
+  const earnedBadgeCount = buildFamilyProgress(metrics).reduce((sum, f) => sum + f.earnedCount, 0);
 
   const today = formatTodayLong();
 
@@ -66,15 +66,15 @@ export default async function DashboardPage() {
       {/* Progress + badge teaser */}
       <Reveal className="flex flex-wrap items-stretch gap-5">
         <div className="min-w-[280px] flex-1">
-          <LevelProgress points={badgeStats.points} compact />
+          <LevelProgress points={yourLifetime?.points ?? 0} compact />
         </div>
         <Link
-          href={`/profile/${user.id}`}
+          href={`/profile/${user.id}/badges`}
           className="hover-lift flex min-w-[220px] flex-1 items-center justify-between rounded-xl border border-border bg-card p-7 hover:border-primary"
         >
           <div>
             <p className="font-heading text-lg font-bold">
-              {earnedBadgeCount} of {BADGE_COLLECTION.length} badges
+              {earnedBadgeCount} of {TOTAL_BADGES} badges
             </p>
             <p className="text-sm text-muted-foreground">View your full collection →</p>
           </div>
@@ -91,13 +91,13 @@ export default async function DashboardPage() {
           />
         </Reveal>
         <Reveal delay={60}>
-          <StatTile value={badgeStats.roundsPlayed} label="Lifetime" sublabel="Rounds played" />
+          <StatTile value={yourLifetime?.roundsPlayed ?? 0} label="Lifetime" sublabel="Rounds played" />
         </Reveal>
         <Reveal delay={120}>
-          <StatTile value={badgeStats.marqueeCoursesPlayed} label="Lifetime" sublabel="Top 100 played" />
+          <StatTile value={yourLifetime?.marqueeCoursesPlayed ?? 0} label="Lifetime" sublabel="Top 100 played" />
         </Reveal>
         <Reveal delay={180}>
-          <StatTile value={badgeStats.statesPlayed} label="Lifetime" sublabel="States played" />
+          <StatTile value={yourLifetime?.statesPlayed ?? 0} label="Lifetime" sublabel="States played" />
         </Reveal>
       </div>
 
