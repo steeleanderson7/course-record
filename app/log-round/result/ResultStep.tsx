@@ -106,12 +106,11 @@ export function ResultStep({
       </Reveal>
 
       <Reveal delay={550} className="flex flex-col items-center gap-3">
+        {/* The territory map now lives on the Dashboard itself — one
+            button, not two links to the same destination. */}
         <Button asChild className="w-full max-w-xs">
-          <Link href="/map">View Territory Map</Link>
+          <Link href="/dashboard">View Your Territory</Link>
         </Button>
-        <Link href="/dashboard" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
-          Back to Dashboard
-        </Link>
       </Reveal>
     </div>
   );

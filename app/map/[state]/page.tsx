@@ -30,7 +30,7 @@ export default async function StateMapPage({
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-7 px-8 py-10">
       <div className="space-y-1">
-        <Link href="/map" className="mb-0.5 flex items-center gap-1 text-[13px] font-semibold text-muted-foreground">
+        <Link href="/dashboard" className="mb-0.5 flex items-center gap-1 text-[13px] font-semibold text-muted-foreground">
           ← All states
         </Link>
         <h1 className="font-heading text-[32px] font-bold">Territory Map — {stateName}</h1>

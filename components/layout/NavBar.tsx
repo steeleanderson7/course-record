@@ -28,10 +28,16 @@ export async function NavBar() {
         </div>
 
         {user ? (
-          <>
+          <div className="flex items-center gap-6">
             <NavLinks />
+            <Link
+              href="/log-round"
+              className="hover-lift rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
+            >
+              Log a Round
+            </Link>
             <AuthMenu />
-          </>
+          </div>
         ) : (
           <nav className="flex items-center gap-5">
             <Link href="/login" className="text-sm font-semibold text-muted-foreground hover:text-foreground">

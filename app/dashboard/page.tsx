@@ -10,10 +10,11 @@ import { activityText } from "@/lib/activityText";
 import { formatRelativeTime, formatTodayLong } from "@/lib/relativeTime";
 import { BRAND_COLORS } from "@/lib/colors";
 import { countEarnedBadges } from "@/lib/badgeCatalog";
-import { getPlayerMetricsMap } from "@/lib/badgeMetrics";
+import { getPlayerMetricsMap, getGroupBadgeCounts } from "@/lib/badgeMetrics";
+import { findState } from "@/lib/geo/us-projection";
 import { LevelProgress } from "@/components/LevelProgress";
 import { StatTile } from "@/components/StatTile";
-import { DashboardTerritoryPreview } from "@/components/map/DashboardTerritoryPreview";
+import { TerritoryMapClient } from "@/components/map/TerritoryMapClient";
 import { Reveal } from "@/components/Reveal";
 
 const TOTAL_BADGES = 100;
@@ -29,20 +30,31 @@ export default async function DashboardPage() {
     getPlayerMetricsMap(supabase, user.id),
   ]);
 
-  const lifetimeByMember = await getGroupLifetimeStats(supabase, friends.map((f) => f.id));
+  const memberIds = friends.map((f) => f.id);
+  // Same data the standalone /map page used to fetch on its own — the
+  // territory map now lives here instead, so the Dashboard needs the one
+  // query /map needed that it didn't already have (badge counts for the
+  // National Leaderboard card; everything else it already fetches above
+  // for the stat tiles/activity feed).
+  const [lifetimeByMember, badgeCountByFriend] = await Promise.all([
+    getGroupLifetimeStats(supabase, memberIds),
+    getGroupBadgeCounts(supabase, memberIds),
+  ]);
+  const roundsPlayedByFriend = Object.fromEntries(
+    memberIds.map((id) => [id, lifetimeByMember.get(id)?.roundsPlayed ?? 0])
+  );
   const yourLifetime = lifetimeByMember.get(user.id);
 
   const recordsCountByUser = new Map<string, number>();
   for (const r of records) recordsCountByUser.set(r.holderUserId, (recordsCountByUser.get(r.holderUserId) ?? 0) + 1);
 
-  const standings = friends
-    .map((f) => ({
-      friend: f,
-      records: recordsCountByUser.get(f.id) ?? 0,
-      points: lifetimeByMember.get(f.id)?.points ?? 0,
-    }))
-    .sort((a, b) => b.records - a.records || b.points - a.points)
-    .slice(0, 5);
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+  const isUsCourse = (courseId: string) => {
+    const c = courseById.get(courseId);
+    return c ? findState(c.lon, c.lat) !== null : false;
+  };
+  const usCourseCount = courses.filter((c) => findState(c.lon, c.lat)).length;
+  const yourUsCount = records.filter((r) => r.holderUserId === user.id && isUsCourse(r.courseId)).length;
 
   // Dashboard teaser now reflects the 100-badge tiered system (the main
   // gamification driver going forward), not the older 8-badge collection —
@@ -102,30 +114,8 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-start gap-7">
         {/* Main column */}
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-7">
-          {/* Your Territory */}
-          <Reveal className="flex flex-col gap-5 rounded-xl border border-border bg-card p-7">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-heading text-[22px] font-bold">Your Territory</p>
-                <p className="text-sm text-muted-foreground">
-                  You control {recordsCountByUser.get(user.id) ?? 0} of {records.length} tracked course
-                  {records.length === 1 ? "" : "s"}
-                </p>
-              </div>
-              <Link href="/map" className="text-sm font-bold hover:text-primary">
-                View full map →
-              </Link>
-            </div>
-            <DashboardTerritoryPreview
-              courses={courses}
-              records={records}
-              friends={friends}
-              currentUserId={user.id}
-            />
-          </Reveal>
-
           {/* Recent Activity */}
-          <Reveal delay={100} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-7">
+          <Reveal className="flex flex-col gap-4 rounded-xl border border-border bg-card p-7">
             <p className="font-heading text-[22px] font-bold">Recent Activity</p>
             <div className="flex flex-col gap-4">
               {activity.map((item, i) => (
@@ -174,47 +164,32 @@ export default async function DashboardPage() {
               Log a Round
             </Link>
           </Reveal>
-
-          <Reveal delay={150} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-7">
-            <p className="font-heading text-xl font-bold">Group Standings</p>
-            <div className="flex flex-col gap-3.5">
-              {standings.map(({ friend, records: recordCount, points }, i) => {
-                const isYou = friend.id === user.id;
-                return (
-                  <div
-                    key={friend.id}
-                    className={`flex items-center gap-3 rounded-lg transition-colors ${isYou ? "-mx-2 bg-primary/10 px-2 py-1.5" : "hover:bg-muted/40"}`}
-                  >
-                    <span className="w-4 text-[13px] font-bold text-muted-foreground">{i + 1}</span>
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                      style={{
-                        backgroundColor: friend.color,
-                        color: isYou ? BRAND_COLORS.ink : "#fff",
-                      }}
-                    >
-                      {friend.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-sm ${isYou ? "font-bold" : "font-semibold"}`}>
-                        {friend.name}
-                        {isYou ? " (you)" : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{points.toLocaleString()} pts</p>
-                    </div>
-                    <span className="text-[13px] font-bold text-primary">
-                      {recordCount} record{recordCount === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <Link href="/leaderboard" className="text-sm font-bold hover:text-primary">
-              View full leaderboard →
-            </Link>
-          </Reveal>
         </div>
       </div>
+
+      {/* Your Territory — the full interactive map (filters, hover effects,
+          National Leaderboard, All Courses) now lives here instead of on a
+          separate /map page, which redirects here. Same component, same
+          data, no duplicate page to keep in sync. Replaces the old
+          Group Standings sidebar card too — the map's own National
+          Leaderboard already covers that (and more: badges + rounds
+          played, every member, not just the top 5). */}
+      <Reveal delay={100} className="space-y-1">
+        <p className="font-heading text-[22px] font-bold">Your Territory</p>
+        <p className="text-sm text-muted-foreground">
+          {usCourseCount} course{usCourseCount === 1 ? "" : "s"} tracked nationwide — you hold {yourUsCount}
+        </p>
+      </Reveal>
+      <Reveal delay={150}>
+        <TerritoryMapClient
+          courses={courses}
+          records={records}
+          friends={friends}
+          currentUserId={user.id}
+          roundsPlayedByFriend={roundsPlayedByFriend}
+          badgeCountByFriend={badgeCountByFriend}
+        />
+      </Reveal>
     </div>
   );
 }
