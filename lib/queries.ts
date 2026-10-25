@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { colorForUser, BRAND_COLORS } from "@/lib/colors";
 import { daysBetween } from "@/lib/relativeTime";
+import { findState, stateGeoBounds } from "@/lib/geo/us-projection";
 import type { Course, CourseRecord, Friend, Round } from "@/lib/types";
 
 export async function getUserGroups(supabase: SupabaseClient, userId: string, activeGroupId: string) {
@@ -149,6 +150,49 @@ export async function getGroupRecords(
   }));
 
   return { records, courses };
+}
+
+/**
+ * Every real course in a state, regardless of whether the group has ever
+ * logged a round there — backs the "show unclaimed courses" map toggle.
+ * Deliberately separate from getGroupRecords above (which only ever
+ * returns courses with an existing record): this is the broader, group-
+ * agnostic catalog a group hasn't necessarily touched yet.
+ *
+ * Two-stage filter, matching the pattern app/map/[state]/page.tsx already
+ * uses for the tracked-courses list: a cheap geographic bounding-box
+ * pre-filter via the courses_in_bbox RPC (hits the existing courses.geom
+ * GiST index, see supabase/migrations/0012_courses_in_bbox.sql), then a
+ * precise findState() point-in-polygon refine in JS to drop any stray rows
+ * the (deliberately padded, to avoid false negatives) bbox over-includes
+ * from a neighboring state.
+ */
+export async function getCoursesInState(supabase: SupabaseClient, stateName: string): Promise<Course[]> {
+  const bounds = stateGeoBounds(stateName);
+  if (!bounds) return [];
+  const [[minLon, minLat], [maxLon, maxLat]] = bounds;
+
+  const { data, error } = await supabase.rpc("courses_in_bbox", {
+    p_min_lon: minLon,
+    p_min_lat: minLat,
+    p_max_lon: maxLon,
+    p_max_lat: maxLat,
+  });
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter((c: { lat: number; lon: number }) => findState(c.lon, c.lat)?.name === stateName)
+    .map(
+      (c: { id: string; name: string; city: string | null; country_code: string | null; lat: number; lon: number; par: number | null }) => ({
+        id: c.id,
+        name: c.name,
+        city: c.city ?? "",
+        country: c.country_code ?? "",
+        lat: c.lat,
+        lon: c.lon,
+        par: c.par,
+      })
+    );
 }
 
 export type BestRound = { userId: string; score: number; par: number | null; courseName: string; datePlayed: string };

@@ -1,4 +1,4 @@
-import { geoAlbersUsa, geoContains, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import { geoAlbersUsa, geoBounds, geoContains, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import { feature, neighbors } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import usAtlas from "us-atlas/states-10m.json";
@@ -69,4 +69,26 @@ export function stateBounds(stateName: string): [[number, number], [number, numb
   const f = US_STATE_FEATURES.find((s) => s.properties.name === stateName);
   if (!f) return null;
   return US_PATH.bounds(f as GeoPermissibleObjects) as [[number, number], [number, number]];
+}
+
+const GEO_BOUNDS_PAD_DEGREES = 0.1;
+
+/**
+ * A state's real geographic bounding box in [lon, lat] terms (not projected
+ * pixels, unlike `stateBounds` above) — used as a cheap SQL pre-filter for
+ * "every course in this state" queries (see `getCoursesInState` in
+ * lib/queries.ts). Padded by ~0.1° (~11km): `us-atlas`'s topology is
+ * simplified, so its exact bbox can sit fractionally inside the true
+ * border at any given point — an unpadded box risks silently dropping a
+ * real border-adjacent course before a later point-in-polygon refine step
+ * (`findState`) ever sees it.
+ */
+export function stateGeoBounds(stateName: string): [[number, number], [number, number]] | null {
+  const f = US_STATE_FEATURES.find((s) => s.properties.name === stateName);
+  if (!f) return null;
+  const [[minLon, minLat], [maxLon, maxLat]] = geoBounds(f as GeoPermissibleObjects);
+  return [
+    [minLon - GEO_BOUNDS_PAD_DEGREES, minLat - GEO_BOUNDS_PAD_DEGREES],
+    [maxLon + GEO_BOUNDS_PAD_DEGREES, maxLat + GEO_BOUNDS_PAD_DEGREES],
+  ];
 }

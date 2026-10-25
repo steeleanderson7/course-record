@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { US_PATH, US_STATE_FEATURES } from "@/lib/geo/us-projection";
 import { stateNameToSlug } from "@/lib/geo/us-states";
 import { BRAND_COLORS } from "@/lib/colors";
 import { useTerritoryPins } from "@/lib/hooks/useTerritoryPins";
 import { StateMap } from "@/components/map/StateMap";
+import { getCoursesInStateAction } from "@/app/actions/courses";
 import type { Course, CourseRecord, Friend } from "@/lib/types";
 
 type Props = {
@@ -37,8 +38,42 @@ export function TerritoryMapClient({
 }: Props) {
   const [activeFriendId, setActiveFriendId] = useState<string | "all">("all");
 
+  // "Show unclaimed courses" — state-view only (see the toggle control
+  // below). Fetched once on first enable via a Server Action (not on every
+  // page load — most states' full course lists run into the hundreds) and
+  // cached in state for the rest of the session; toggling off just hides
+  // them again rather than discarding the fetch.
+  const [showUnclaimed, setShowUnclaimed] = useState(false);
+  const [unclaimedCourses, setUnclaimedCourses] = useState<Course[] | null>(null);
+  const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
+
+  async function handleToggleUnclaimed() {
+    const next = !showUnclaimed;
+    setShowUnclaimed(next);
+    if (next && unclaimedCourses === null && focusState) {
+      setLoadingUnclaimed(true);
+      try {
+        setUnclaimedCourses(await getCoursesInStateAction(focusState));
+      } catch {
+        setUnclaimedCourses([]);
+      } finally {
+        setLoadingUnclaimed(false);
+      }
+    }
+  }
+
+  // `courses` is the group's full national tracked-courses list (not
+  // pre-filtered to focusState), so dedup has to check against that full
+  // list, not a state-scoped subset, or a course the group already tracks
+  // could get double-counted as its own separate "unclaimed" pin.
+  const mergedCourses = useMemo(() => {
+    if (!showUnclaimed || !unclaimedCourses) return courses;
+    const existingIds = new Set(courses.map((c) => c.id));
+    return [...courses, ...unclaimedCourses.filter((c) => !existingIds.has(c.id))];
+  }, [courses, showUnclaimed, unclaimedCourses]);
+
   const { pins, badgePins, loosePins, countByFriend, unclaimedCount } = useTerritoryPins(
-    courses,
+    mergedCourses,
     records,
     friends,
     { focusState, activeFriendId }
@@ -189,15 +224,25 @@ export function TerritoryMapClient({
 
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <FilterPill active={activeFriendId === "all"} onClick={() => setActiveFriendId("all")}>
-          All
-        </FilterPill>
-        {friends.map((f) => (
-          <FilterPill key={f.id} active={activeFriendId === f.id} onClick={() => setActiveFriendId(f.id)}>
-            {f.id === currentUserId ? "Mine" : f.name}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <FilterPill active={activeFriendId === "all"} onClick={() => setActiveFriendId("all")}>
+            All
           </FilterPill>
-        ))}
+          {friends.map((f) => (
+            <FilterPill key={f.id} active={activeFriendId === f.id} onClick={() => setActiveFriendId(f.id)}>
+              {f.id === currentUserId ? "Mine" : f.name}
+            </FilterPill>
+          ))}
+        </div>
+        {/* Additive, not mutually-exclusive with the filters above, so it's
+            styled as a checkbox rather than another pill in that group —
+            state view only, since the national map's state-badge
+            aggregation isn't built for hundreds-of-thousands of untracked
+            courses nationwide. */}
+        {focusState && (
+          <UnclaimedToggle checked={showUnclaimed} loading={loadingUnclaimed} onClick={handleToggleUnclaimed} />
+        )}
       </div>
 
       {/* Map + leaderboard side by side — state view keeps its existing
@@ -233,6 +278,40 @@ function FilterPill({
       }`}
     >
       {children}
+    </button>
+  );
+}
+
+function UnclaimedToggle({
+  checked,
+  loading,
+  onClick,
+}: {
+  checked: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={checked}
+      disabled={loading}
+      className={`flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-colors ${
+        checked ? "border-primary bg-primary/[0.08] text-foreground" : "border-input bg-card text-muted-foreground"
+      }`}
+    >
+      <span
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+          checked ? "border-primary bg-primary" : "border-input bg-transparent"
+        }`}
+      >
+        {checked && (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M1.5,5 L4,7.5 L8.5,2" stroke="white" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      {loading ? "Loading unclaimed courses…" : "Show unclaimed courses"}
     </button>
   );
 }
