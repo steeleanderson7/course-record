@@ -145,7 +145,7 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
           <Input
             type="number"
             min={0}
-            placeholder="Holes-in-one"
+            placeholder="Aces"
             aria-label="Holes-in-one"
             value={aces}
             onChange={(e) => setAces(e.target.value)}

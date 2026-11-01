@@ -4,6 +4,7 @@ import { Logo } from "@/components/Logo";
 import { AuthMenu } from "@/components/layout/AuthMenu";
 import { NavLinks } from "@/components/layout/NavLinks";
 import { GroupSwitcherPill } from "@/components/layout/GroupSwitcherPill";
+import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { getNavContext } from "@/lib/supabase/guards";
 
 // These routes have entirely bespoke headers in the design (dark marketing
@@ -18,40 +19,48 @@ export async function NavBar() {
   const { user, group } = await getNavContext();
 
   return (
-    <header className="w-full border-b border-border bg-card">
-      <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-8 py-4">
-        <div className="flex items-center gap-4">
-          <Link href={user ? "/dashboard" : "/"} className="transition-transform duration-200 hover:scale-105">
-            <Logo size={30} />
-          </Link>
-          {group && <GroupSwitcherPill groupName={group.name} />}
-        </div>
-
-        {user ? (
-          <div className="flex items-center gap-6">
-            <NavLinks />
-            <Link
-              href="/log-round"
-              className="hover-lift rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
-            >
-              Log a Round
+    <>
+      <header className="w-full border-b border-border bg-card">
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-8 py-4">
+          <div className="flex items-center gap-4">
+            <Link href={user ? "/dashboard" : "/"} className="transition-transform duration-200 hover:scale-105">
+              <Logo size={30} />
             </Link>
-            <AuthMenu />
+            {group && <GroupSwitcherPill groupName={group.name} />}
           </div>
-        ) : (
-          <nav className="flex items-center gap-5">
-            <Link href="/login" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="hover-lift rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
-            >
-              Sign up free
-            </Link>
-          </nav>
-        )}
-      </div>
-    </header>
+
+          {user ? (
+            <div className="flex items-center gap-6">
+              {/* Below md, these live in the fixed bottom tab bar instead —
+                  there isn't room for a 3-link nav + a CTA button + the
+                  avatar menu in one row on a phone. */}
+              <div className="hidden items-center gap-6 md:flex">
+                <NavLinks />
+                <Link
+                  href="/log-round"
+                  className="hover-lift rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
+                >
+                  Log a Round
+                </Link>
+              </div>
+              <AuthMenu />
+            </div>
+          ) : (
+            <nav className="flex items-center gap-5">
+              <Link href="/login" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="hover-lift rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
+              >
+                Sign up free
+              </Link>
+            </nav>
+          )}
+        </div>
+      </header>
+      {user && <MobileTabBar />}
+    </>
   );
 }
