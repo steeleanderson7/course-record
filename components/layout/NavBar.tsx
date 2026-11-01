@@ -60,7 +60,7 @@ export async function NavBar() {
           )}
         </div>
       </header>
-      {user && <MobileTabBar />}
+      {user && <MobileTabBar viewerId={user.id} />}
     </>
   );
 }

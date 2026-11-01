@@ -32,14 +32,37 @@ const COMPASS_MARGIN = 60;
 
 type ProjectedPin = CoursePin & { xy: [number, number] };
 
+/**
+ * Hover (default) reproduces today's desktop behavior byte-for-byte: a
+ * generated `:hover ~ [data-for]` CSS block reveals tooltips, and each pin
+ * is a real `<a href>` that navigates on click. Tap mode is for touch —
+ * mobile Safari/Chrome apply `:hover` on tap and leave it "stuck" until a
+ * tap elsewhere, so tap-to-reveal can't be built on CSS hover at all; it
+ * needs real state, driven by the parent (so the same tap can also drive
+ * a "Selected Course" card that lives outside this component). No href on
+ * pins in tap mode — a tap previews first, a deliberate follow-up action
+ * (the Selected Course card's own button) is what navigates.
+ */
+export type StateMapInteraction =
+  | { mode: "hover" }
+  | {
+      mode: "tap";
+      activeId: string | null;
+      onPinTap: (pin: CoursePin) => void;
+      onClusterTap: (clusterId: string) => void;
+      onClusterRowTap: (pin: CoursePin) => void;
+    };
+
 export function StateMap({
   stateName,
   pins,
   currentUserId,
+  interaction = { mode: "hover" },
 }: {
   stateName: string;
   pins: CoursePin[];
   currentUserId: string;
+  interaction?: StateMapInteraction;
 }) {
   const clipId = useId();
   const grainFilterId = useId();
@@ -159,12 +182,14 @@ export function StateMap({
   // tooltips must be their own layer, rendered after every marker, rather
   // than nested inside each marker's own <g> (a later marker would
   // otherwise paint over and clip an open tooltip on a dense map).
-  const hoverCss = [
-    ...singles.map((s) => pinDomId(s.course.id)),
-    ...clusters.map((_, i) => clusterDomId(i)),
-  ]
-    .map((id) => `#${id}:hover ~ .cr-map-tooltip-wrap[data-for="${id}"] .cr-map-tooltip{opacity:1}`)
-    .join("");
+  // Skipped entirely in tap mode — there's nothing for touch's simulated
+  // :hover to match if the rule was never emitted in the first place.
+  const hoverCss =
+    interaction.mode === "hover"
+      ? [...singles.map((s) => pinDomId(s.course.id)), ...clusters.map((_, i) => clusterDomId(i))]
+          .map((id) => `#${id}:hover ~ .cr-map-tooltip-wrap[data-for="${id}"] .cr-map-tooltip{opacity:1}`)
+          .join("")
+      : "";
 
   const [neighborLabelX, neighborLabelY] = emptyCorner?.neighborName
     ? cornerLabelPosition(emptyCorner.corner, WIDTH, HEIGHT)
@@ -248,18 +273,24 @@ export function StateMap({
       ))}
 
       {singles.map((p) => (
-        <CourseMarker key={p.course.id} pin={p} currentUserId={currentUserId} />
+        <CourseMarker key={p.course.id} pin={p} currentUserId={currentUserId} interaction={interaction} />
       ))}
       {clusters.map((c, i) => (
-        <ClusterMarker key={clusterDomId(i)} id={clusterDomId(i)} cluster={c} />
+        <ClusterMarker key={clusterDomId(i)} id={clusterDomId(i)} cluster={c} interaction={interaction} />
       ))}
 
       {/* Tooltip layer — after every marker above, per the note above. */}
       {singles.map((p) => (
-        <CourseTooltip key={`${p.course.id}-tip`} pin={p} currentUserId={currentUserId} />
+        <CourseTooltip key={`${p.course.id}-tip`} pin={p} currentUserId={currentUserId} interaction={interaction} />
       ))}
       {clusters.map((c, i) => (
-        <ClusterTooltip key={`${clusterDomId(i)}-tip`} id={clusterDomId(i)} cluster={c} currentUserId={currentUserId} />
+        <ClusterTooltip
+          key={`${clusterDomId(i)}-tip`}
+          id={clusterDomId(i)}
+          cluster={c}
+          currentUserId={currentUserId}
+          interaction={interaction}
+        />
       ))}
 
       <g style={{ pointerEvents: "none" }}>
@@ -281,10 +312,13 @@ export function StateMap({
   );
 }
 
-function pinDomId(courseId: string) {
+// Exported so a tap-mode consumer (TerritoryMapClient) can construct the
+// exact same id when deciding what `activeId` to set on tap, without
+// duplicating the format string.
+export function pinDomId(courseId: string) {
   return `pin-${courseId}`;
 }
-function clusterDomId(index: number) {
+export function clusterDomId(index: number) {
   return `cluster-${index}`;
 }
 
@@ -328,46 +362,105 @@ function holderLabel(pin: CoursePin, currentUserId: string): string {
 // handoff's new 8px-radius target), so it still reads as the same icon
 // family without ballooning on a map meant to hold hundreds of courses per
 // state.
-function CourseMarker({ pin, currentUserId }: { pin: ProjectedPin; currentUserId: string }) {
+function CourseMarker({
+  pin,
+  currentUserId,
+  interaction,
+}: {
+  pin: ProjectedPin;
+  currentUserId: string;
+  interaction: StateMapInteraction;
+}) {
   const color = pin.holder?.color ?? "none";
   const isYou = pin.holder?.id === currentUserId;
+  const inner = (
+    <g transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
+      <g className="cr-map-pin-dot">
+        <path
+          d="M-4.4,-4.8 L0,1.6 L4.4,-4.8 Z"
+          fill={pin.holder ? color : BRAND_COLORS.cream}
+          stroke={pin.holder ? undefined : BRAND_COLORS.unclaimed}
+          strokeWidth={pin.holder ? 0 : 1.2}
+          strokeDasharray={pin.holder ? undefined : "2 2"}
+        />
+        <circle
+          cx={0}
+          cy={PIN_HEAD_OFFSET_Y}
+          r={PIN_RADIUS}
+          fill={pin.holder ? color : BRAND_COLORS.cream}
+          stroke={pin.holder ? "#FFFFFF" : BRAND_COLORS.unclaimed}
+          strokeWidth={pin.holder ? 1.6 : 1.2}
+          strokeDasharray={pin.holder ? undefined : "2 2"}
+        />
+        {isYou && (
+          <>
+            <line x1={0} y1={-14.4} x2={0} y2={-4.8} stroke={BRAND_COLORS.ink} strokeWidth={1.28} strokeLinecap="round" />
+            <path d="M0,-14.4 L4.4,-12 L0,-10 Z" fill={BRAND_COLORS.ink} />
+          </>
+        )}
+        {pin.holder && !isYou && <circle cx={0} cy={PIN_HEAD_OFFSET_Y} r={2.24} fill="#FFFFFF" />}
+      </g>
+    </g>
+  );
+
+  if (interaction.mode === "tap") {
+    return (
+      <g
+        id={pinDomId(pin.course.id)}
+        className="cr-map-pin"
+        role="button"
+        tabIndex={0}
+        aria-label={`${pin.course.name}, ${pin.holder ? `held by ${holderLabel(pin, currentUserId)}` : "unclaimed"}`}
+        onClick={() => interaction.onPinTap(pin)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            interaction.onPinTap(pin);
+          }
+        }}
+      >
+        {inner}
+      </g>
+    );
+  }
+
   return (
     <a href={`/courses/${pin.course.id}`} id={pinDomId(pin.course.id)} className="cr-map-pin">
-      <g transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
-        <g className="cr-map-pin-dot">
-          <path
-            d="M-4.4,-4.8 L0,1.6 L4.4,-4.8 Z"
-            fill={pin.holder ? color : BRAND_COLORS.cream}
-            stroke={pin.holder ? undefined : BRAND_COLORS.unclaimed}
-            strokeWidth={pin.holder ? 0 : 1.2}
-            strokeDasharray={pin.holder ? undefined : "2 2"}
-          />
-          <circle
-            cx={0}
-            cy={PIN_HEAD_OFFSET_Y}
-            r={PIN_RADIUS}
-            fill={pin.holder ? color : BRAND_COLORS.cream}
-            stroke={pin.holder ? "#FFFFFF" : BRAND_COLORS.unclaimed}
-            strokeWidth={pin.holder ? 1.6 : 1.2}
-            strokeDasharray={pin.holder ? undefined : "2 2"}
-          />
-          {isYou && (
-            <>
-              <line x1={0} y1={-14.4} x2={0} y2={-4.8} stroke={BRAND_COLORS.ink} strokeWidth={1.28} strokeLinecap="round" />
-              <path d="M0,-14.4 L4.4,-12 L0,-10 Z" fill={BRAND_COLORS.ink} />
-            </>
-          )}
-          {pin.holder && !isYou && <circle cx={0} cy={PIN_HEAD_OFFSET_Y} r={2.24} fill="#FFFFFF" />}
-        </g>
-      </g>
+      {inner}
     </a>
   );
 }
 
-function ClusterMarker({ id, cluster }: { id: string; cluster: ClusterGroup<ProjectedPin> }) {
+function ClusterMarker({
+  id,
+  cluster,
+  interaction,
+}: {
+  id: string;
+  cluster: ClusterGroup<ProjectedPin>;
+  interaction: StateMapInteraction;
+}) {
   const r = clusterRadius(cluster.items.length);
   return (
-    <g id={id} className="cr-map-pin" transform={`translate(${cluster.xy[0]},${cluster.xy[1]})`}>
+    <g
+      id={id}
+      className="cr-map-pin"
+      transform={`translate(${cluster.xy[0]},${cluster.xy[1]})`}
+      {...(interaction.mode === "tap"
+        ? {
+            role: "button" as const,
+            tabIndex: 0,
+            "aria-label": `${cluster.items.length} courses in this area`,
+            onClick: () => interaction.onClusterTap(id),
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                interaction.onClusterTap(id);
+              }
+            },
+          }
+        : {})}
+    >
       <g className="cr-map-pin-dot is-cluster">
         <circle cx={0} cy={0} r={r} fill={BRAND_COLORS.fairway} stroke={BRAND_COLORS.gold} strokeWidth={2} />
         <text x={0} y={4} textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight={700} fontSize={11} fill={BRAND_COLORS.cream}>
@@ -378,14 +471,31 @@ function ClusterMarker({ id, cluster }: { id: string; cluster: ClusterGroup<Proj
   );
 }
 
-function CourseTooltip({ pin, currentUserId }: { pin: ProjectedPin; currentUserId: string }) {
+function CourseTooltip({
+  pin,
+  currentUserId,
+  interaction,
+}: {
+  pin: ProjectedPin;
+  currentUserId: string;
+  interaction: StateMapInteraction;
+}) {
   const width = 168;
   const height = 58;
   // Icon's circle head tops out at PIN_HEAD_OFFSET_Y - PIN_RADIUS; +8px breathing room above that.
   const gap = -PIN_HEAD_OFFSET_Y + PIN_RADIUS + 8;
+  const domId = pinDomId(pin.course.id);
+  const isTapActive = interaction.mode === "tap" && interaction.activeId === domId;
   return (
-    <g className="cr-map-tooltip-wrap" data-for={pinDomId(pin.course.id)} transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
-      <foreignObject className="cr-map-tooltip" x={-width / 2} y={-(height + gap)} width={width} height={height} style={{ overflow: "visible" }}>
+    <g className="cr-map-tooltip-wrap" data-for={domId} transform={`translate(${pin.xy[0]},${pin.xy[1]})`}>
+      <foreignObject
+        className={`cr-map-tooltip ${isTapActive ? "is-tap-active" : ""}`}
+        x={-width / 2}
+        y={-(height + gap)}
+        width={width}
+        height={height}
+        style={{ overflow: "visible" }}
+      >
         <div className="cr-tooltip-card" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
           <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 1 }}>{pin.course.name}</div>
           <div style={{ color: "#C9D6CB" }}>
@@ -403,25 +513,44 @@ function ClusterTooltip({
   id,
   cluster,
   currentUserId,
+  interaction,
 }: {
   id: string;
   cluster: ClusterGroup<ProjectedPin>;
   currentUserId: string;
+  interaction: StateMapInteraction;
 }) {
   const width = 196;
   const rows = cluster.items.slice().sort((a, b) => a.course.name.localeCompare(b.course.name));
   const height = 30 + rows.length * 16;
   const r = clusterRadius(cluster.items.length);
   const gap = r + 10;
+  const isTapActive = interaction.mode === "tap" && interaction.activeId === id;
   return (
     <g className="cr-map-tooltip-wrap" data-for={id} transform={`translate(${cluster.xy[0]},${cluster.xy[1]})`}>
-      <foreignObject className="cr-map-tooltip" x={-width / 2} y={-(height + gap)} width={width} height={height} style={{ overflow: "visible" }}>
+      <foreignObject
+        className={`cr-map-tooltip ${isTapActive ? "is-tap-active" : ""}`}
+        x={-width / 2}
+        y={-(height + gap)}
+        width={width}
+        height={height}
+        style={{ overflow: "visible" }}
+      >
         <div className="cr-tooltip-card" style={{ fontSize: 11, lineHeight: 1.55 }}>
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
             {clusterLabel(rows)} · {rows.length} courses
           </div>
           {rows.map((p) => (
-            <div key={p.course.id} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <div
+              key={p.course.id}
+              onClick={interaction.mode === "tap" ? () => interaction.onClusterRowTap(p) : undefined}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                cursor: interaction.mode === "tap" ? "pointer" : undefined,
+              }}
+            >
               <span>{p.course.name}</span>
               <span style={{ color: "#C9D6CB", whiteSpace: "nowrap" }}>{holderLabel(p, currentUserId)}</span>
             </div>

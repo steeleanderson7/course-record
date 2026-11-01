@@ -80,10 +80,10 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[680px] flex-col gap-7 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-[680px] flex-col gap-5 px-4 py-6 pb-28 md:gap-7 md:px-6 md:py-10 md:pb-10">
       <div className="flex items-center justify-between">
         <WizardProgress step={2} label="Enter your score" />
-        <Link href="/dashboard" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
+        <Link href="/dashboard" className="flex min-h-11 items-center text-sm font-semibold text-muted-foreground hover:text-foreground">
           Cancel
         </Link>
       </div>
@@ -159,17 +159,20 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
         <div className="flex items-center gap-6">
           <button
             onClick={() => setScore((s) => Math.max(1, s - 1))}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-xl font-bold transition-transform hover:scale-105 active:scale-95"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-xl font-bold transition-transform hover:scale-105 active:scale-95 md:h-11 md:w-11"
             aria-label="Decrease score"
           >
             −
           </button>
-          <span className="font-heading min-w-[90px] text-center text-5xl font-bold" style={{ color: BRAND_COLORS.ink }}>
+          <span
+            className="font-heading min-w-[90px] text-center text-[56px] font-bold md:text-5xl"
+            style={{ color: BRAND_COLORS.ink }}
+          >
             {score}
           </span>
           <button
             onClick={() => setScore((s) => s + 1)}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-xl font-bold transition-transform hover:scale-105 active:scale-95"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-border text-xl font-bold transition-transform hover:scale-105 active:scale-95 md:h-11 md:w-11"
             aria-label="Increase score"
           >
             +
@@ -182,13 +185,29 @@ export function ScoreStep({ groupId, course, currentRecord }: Props) {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex flex-col items-center gap-3">
+      {/* Desktop: inline, centered button + back link, same as before. */}
+      <div className="hidden flex-col items-center gap-3 md:flex">
         <Button onClick={handleSubmit} disabled={loading} className="w-full max-w-xs">
           {loading ? "Submitting..." : "Submit Round"}
         </Button>
         <Link href="/log-round" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
           ← Back
         </Link>
+      </div>
+
+      {/* Mobile: sticky bottom button, the one-handed "big-tap-target,
+          sticky-bottom-button" pattern from the mobile mockup — pinned
+          above the fixed tab bar (76px + safe-area-inset-bottom), not just
+          sitting inline at the end of a scrollable form. The page's own
+          pb-28 above keeps the score card from ever being hidden behind
+          this when the content doesn't fill the viewport. */}
+      <div
+        className="fixed inset-x-0 z-30 flex justify-center bg-background/95 px-4 pt-3 pb-3 backdrop-blur-sm md:hidden"
+        style={{ bottom: "calc(76px + env(safe-area-inset-bottom))" }}
+      >
+        <Button onClick={handleSubmit} disabled={loading} className="min-h-12 w-full">
+          {loading ? "Submitting..." : "Submit Round"}
+        </Button>
       </div>
     </div>
   );

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { US_PATH, US_STATE_FEATURES } from "@/lib/geo/us-projection";
 import { stateNameToSlug } from "@/lib/geo/us-states";
 import { BRAND_COLORS } from "@/lib/colors";
-import { useTerritoryPins } from "@/lib/hooks/useTerritoryPins";
-import { StateMap } from "@/components/map/StateMap";
+import { useTerritoryPins, type CoursePin } from "@/lib/hooks/useTerritoryPins";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { StateMap, pinDomId, type StateMapInteraction } from "@/components/map/StateMap";
 import { getCoursesInStateAction } from "@/app/actions/courses";
 import type { Course, CourseRecord, Friend } from "@/lib/types";
 
@@ -36,6 +37,7 @@ export function TerritoryMapClient({
   roundsPlayedByFriend,
   badgeCountByFriend,
 }: Props) {
+  const isMobile = useIsMobile();
   const [activeFriendId, setActiveFriendId] = useState<string | "all">("all");
 
   // "Show unclaimed courses" — state-view only (see the toggle control
@@ -46,6 +48,37 @@ export function TerritoryMapClient({
   const [showUnclaimed, setShowUnclaimed] = useState(false);
   const [unclaimedCourses, setUnclaimedCourses] = useState<Course[] | null>(null);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
+
+  // Mobile state-view only: a tap-driven "which tooltip is open" id and a
+  // separately-lived "which course is selected" id (drives the Selected
+  // Course card below the map). Kept as ids, not pin objects, so they
+  // self-heal if the underlying record changes instead of going stale.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [mapView, setMapView] = useState<"map" | "list">("map");
+
+  // Cluster ids are positional (`cluster-${index}`) and fully recomputed
+  // every render — harmless while hover was ephemeral, but activeId/
+  // selectedCourseId are real state that survives a re-render triggered by
+  // something unrelated. Without this, toggling a friend filter or "Show
+  // unclaimed courses" could leave a stale id silently resolving to a
+  // *different* cluster/course than the one actually tapped.
+  //
+  // Adjusted during render (React's documented pattern for "reset state
+  // when a prop/dependency changes"), not inside a useEffect — a
+  // same-render setState here is detected and re-rendered before the
+  // browser paints, avoiding the extra commit+effect+re-render cycle a
+  // useEffect version would cost on every one of these changes.
+  const [prevSelectionInputs, setPrevSelectionInputs] = useState([activeFriendId, showUnclaimed, focusState]);
+  if (
+    prevSelectionInputs[0] !== activeFriendId ||
+    prevSelectionInputs[1] !== showUnclaimed ||
+    prevSelectionInputs[2] !== focusState
+  ) {
+    setPrevSelectionInputs([activeFriendId, showUnclaimed, focusState]);
+    setActiveId(null);
+    setSelectedCourseId(null);
+  }
 
   async function handleToggleUnclaimed() {
     const next = !showUnclaimed;
@@ -79,16 +112,66 @@ export function TerritoryMapClient({
     { focusState, activeFriendId }
   );
 
+  const selectedPin = selectedCourseId ? (pins.find((p) => p.course.id === selectedCourseId) ?? null) : null;
+
+  // Tap mode only ever applies to the state view, on an actual touch
+  // viewport — national-map pins and the desktop hover experience are
+  // untouched (StateMap's `interaction` prop defaults to "hover" when this
+  // is left undefined, reproducing today's behavior byte-for-byte).
+  const interaction: StateMapInteraction | undefined =
+    isMobile && focusState
+      ? {
+          mode: "tap",
+          activeId,
+          onPinTap: (pin: CoursePin) => {
+            const id = pinDomId(pin.course.id);
+            setActiveId((current) => (current === id ? null : id));
+            setSelectedCourseId(pin.course.id);
+          },
+          onClusterTap: (clusterId: string) => {
+            setActiveId((current) => (current === clusterId ? null : clusterId));
+          },
+          onClusterRowTap: (pin: CoursePin) => {
+            setActiveId(null);
+            setSelectedCourseId(pin.course.id);
+          },
+        }
+      : undefined;
+
   const mapCard = (
     <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-7">
       <p className="text-[13px] text-muted-foreground">
         {focusState
-          ? "Hover a pin for details · nearby courses group into a cluster · tap to see who holds the record"
+          ? isMobile
+            ? "Tap a pin for details · nearby courses group into a cluster"
+            : "Hover a pin for details · nearby courses group into a cluster · tap to see who holds the record"
           : "National overview · each state is lightly tinted · tap a state (or a pin) to drill in"}
       </p>
+      {/* Map/List segmented toggle — mobile, state-view only. "List" reuses
+          the exact same pins/holder data as allCoursesCard below, just
+          inline here instead of a separate full-width section. */}
+      {focusState && (
+        <div className="flex gap-0.5 rounded-full border border-border bg-background p-0.5 md:hidden">
+          {(["map", "list"] as const).map((view) => (
+            <button
+              key={view}
+              onClick={() => setMapView(view)}
+              className={`min-h-11 flex-1 rounded-full text-[12.5px] font-semibold capitalize ${
+                mapView === view ? "bg-sidebar text-sidebar-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {view}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex justify-center overflow-x-auto">
         {focusState ? (
-          <StateMap stateName={focusState} pins={loosePins} currentUserId={currentUserId} />
+          isMobile && mapView === "list" ? (
+            <MobileCourseList pins={loosePins} currentUserId={currentUserId} />
+          ) : (
+            <StateMap stateName={focusState} pins={loosePins} currentUserId={currentUserId} interaction={interaction} />
+          )
         ) : (
           <svg
             viewBox="0 0 960 600"
@@ -251,12 +334,33 @@ export function TerritoryMapClient({
           gets the Dashboard's usual dominant-column ratio instead, since it
           didn't have that problem and previously had no sidebar at all.
           Both wrap to stacked below the breakpoint implied by the basis
-          widths. All Courses stays full-width beneath either layout. */}
+          widths. On mobile, state view swaps the leaderboard for the
+          Selected Course card below instead (matching the mobile map
+          mockup, which has no leaderboard section at all — Leaderboard
+          already has its own tab bar destination, so repeating it here on
+          a space-constrained phone screen isn't worth it). All Courses
+          stays full-width beneath either layout. */}
       <div className="flex flex-wrap items-start gap-7">
         <div className={`min-w-0 ${focusState ? "flex-[3_1_480px]" : "flex-[999_1_560px]"}`}>{mapCard}</div>
-        <div className={`min-w-0 ${focusState ? "flex-[2_1_360px]" : "flex-[1_1_300px]"}`}>{leaderboardCard}</div>
+        <div
+          className={`min-w-0 ${focusState ? "flex-[2_1_360px]" : "flex-[1_1_300px]"} ${focusState ? "hidden md:block" : ""}`}
+        >
+          {leaderboardCard}
+        </div>
       </div>
-      {allCoursesCard}
+
+      {focusState && (
+        <div className="md:hidden">
+          <SelectedCourseCard pin={selectedPin} currentUserId={currentUserId} />
+        </div>
+      )}
+      {/* Hidden on mobile for state view only — the Map/List toggle's List
+          mode (MobileCourseList, above) already shows this exact
+          course/holder/record data in place of the map, so repeating the
+          full table again right below would just be scrolling past the
+          same information twice. Still shown on mobile for the national
+          view (no toggle exists there) and always on desktop. */}
+      <div className={focusState ? "hidden md:block" : ""}>{allCoursesCard}</div>
     </div>
   );
 }
@@ -384,6 +488,97 @@ function LegendDot({ color, dashed, label }: { color?: string; dashed?: boolean;
         }
       />
       <span className="text-[13px]">{label}</span>
+    </div>
+  );
+}
+
+/** Mobile "List" view inside the map card — same holder/score data as
+ *  allCoursesCard, just without the state-abbreviation suffix (redundant
+ *  here, since every row is already scoped to one state) and sized for a
+ *  full-width mobile column instead of a side card. */
+function MobileCourseList({ pins, currentUserId }: { pins: CoursePin[]; currentUserId: string }) {
+  return (
+    <div className="w-full">
+      {pins
+        .slice()
+        .sort((a, b) => a.course.name.localeCompare(b.course.name))
+        .map((p) => (
+          <Link
+            key={p.course.id}
+            href={`/courses/${p.course.id}`}
+            className="course-row -mx-2 min-h-11 items-center gap-3 border-b border-border/60 px-2 py-3 text-left last:border-b-0"
+          >
+            <span className="flex-[2] text-sm">
+              {p.course.name}
+              {p.course.city ? <span className="text-muted-foreground"> · {p.course.city}</span> : null}
+            </span>
+            <span className="flex flex-1 items-center gap-2 text-[13px]">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: p.holder ? p.holder.color : "transparent",
+                  border: p.holder ? undefined : `2px dashed ${BRAND_COLORS.unclaimed}`,
+                }}
+              />
+              {p.holder ? (p.holder.id === currentUserId ? "You" : p.holder.name) : "Unclaimed"}
+            </span>
+            <span className="flex-1 text-right text-[13px]">{p.record?.score ?? "—"}</span>
+          </Link>
+        ))}
+    </div>
+  );
+}
+
+/** Mobile, state-view-only — updates in place when a pin/cluster-row is
+ *  tapped (see the `interaction` object above), instead of navigating away
+ *  immediately the way a desktop click does. Deliberately reintroduces a
+ *  pattern removed from desktop in an earlier task: a non-disruptive
+ *  in-place preview is the better fit for one-handed phone use, where an
+ *  instant route change away from the map you're exploring is more
+ *  disruptive than it is on desktop. */
+function SelectedCourseCard({ pin, currentUserId }: { pin: CoursePin | null; currentUserId: string }) {
+  if (!pin) {
+    return (
+      <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+        <p className="text-sm font-semibold text-muted-foreground">Tap a pin to see course details</p>
+      </div>
+    );
+  }
+
+  const isYou = pin.holder?.id === currentUserId;
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+      <div>
+        <p className="font-heading text-xl font-bold">{pin.course.name}</p>
+        <p className="text-[12.5px] text-muted-foreground">
+          {[pin.course.par ? `Par ${pin.course.par}` : null, pin.course.city].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <div className="h-px bg-border" />
+      {pin.holder ? (
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-[13px] font-bold text-white"
+            style={{ backgroundColor: pin.holder.color }}
+          >
+            {pin.holder.name.slice(0, 1).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Held by {isYou ? "you" : pin.holder.name}</p>
+            <p className="text-xs text-muted-foreground">Course record · {pin.record?.score ?? "—"}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No record set here yet — be the first.</p>
+      )}
+      <Link
+        href={`/log-round/score?courseId=${pin.course.id}`}
+        className="flex min-h-11 items-center justify-center rounded-lg border-2 px-[18px] py-3 text-sm font-bold"
+        style={{ borderColor: BRAND_COLORS.fairway, color: BRAND_COLORS.fairway }}
+      >
+        {pin.holder ? "Challenge This Record" : "Log a Round Here"}
+      </Link>
     </div>
   );
 }

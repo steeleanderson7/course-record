@@ -118,6 +118,18 @@
     @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md;
   }
 
+  /* Horizontally-scrolling chip rows (mobile filter chips, recently-played
+     courses, achievement cards) — scrollable via touch/trackpad either
+     way, just without a visible scrollbar cluttering a compact mobile
+     layout. */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Points/score counters, badge unlock moments, "new record" bursts. */
   @keyframes count-pulse {
     0% {
@@ -249,9 +261,20 @@
     transform-box: fill-box;
     transform-origin: center;
   }
-  svg path[data-state]:hover {
-    transform: scale(1.035);
-    filter: brightness(0.96);
+  /* Every :hover rule from here down is wrapped in (hover: hover) and
+     (pointer: fine) — confirmed mobile Safari/Chrome apply :hover on tap
+     (and leave it "stuck" until a tap elsewhere), so without this guard a
+     touch tap on a reused classname (e.g. .cr-map-pin, shared between this
+     file's hover-mode styling and StateMap's new tap-mode interaction)
+     could show a lingering scaled-up pin that no longer matches real tap
+     state. Touch-primary devices report `hover: none`, so these rules
+     become structurally unable to match there at all — not just unlikely
+     to trigger, actually inapplicable. */
+  @media (hover: hover) and (pointer: fine) {
+    svg path[data-state]:hover {
+      transform: scale(1.035);
+      filter: brightness(0.96);
+    }
   }
 
   .cr-pin {
@@ -262,11 +285,13 @@
     transform-box: fill-box;
     transform-origin: center;
   }
-  .cr-pin:hover .cr-pin-inner {
-    transform: scale(1.22);
-  }
-  .cr-pin:hover .cr-pin-inner.is-cluster {
-    transform: scale(1.1);
+  @media (hover: hover) and (pointer: fine) {
+    .cr-pin:hover .cr-pin-inner {
+      transform: scale(1.22);
+    }
+    .cr-pin:hover .cr-pin-inner.is-cluster {
+      transform: scale(1.1);
+    }
   }
 
   a.course-row {
@@ -277,9 +302,11 @@
       transform 0.12s ease,
       background-color 0.12s ease;
   }
-  a.course-row:hover {
-    transform: scale(1.012);
-    background: rgba(201, 162, 39, 0.07);
+  @media (hover: hover) and (pointer: fine) {
+    a.course-row:hover {
+      transform: scale(1.012);
+      background: rgba(201, 162, 39, 0.07);
+    }
   }
 
   /* Course detail page's Activity Log rows — not links, so just a quiet
@@ -287,8 +314,10 @@
   .activity-row {
     transition: background-color 0.12s ease;
   }
-  .activity-row:hover {
-    background: rgba(201, 162, 39, 0.05);
+  @media (hover: hover) and (pointer: fine) {
+    .activity-row:hover {
+      background: rgba(201, 162, 39, 0.05);
+    }
   }
 
   /* State drill-down map (StateMap.tsx) — a separate class system from the
@@ -306,11 +335,20 @@
     transform-box: fill-box;
     transform-origin: center;
   }
-  .cr-map-pin:hover .cr-map-pin-dot {
-    transform: scale(1.5);
+  @media (hover: hover) and (pointer: fine) {
+    .cr-map-pin:hover .cr-map-pin-dot {
+      transform: scale(1.5);
+    }
+    .cr-map-pin:hover .cr-map-pin-dot.is-cluster {
+      transform: scale(1.15);
+    }
   }
-  .cr-map-pin:hover .cr-map-pin-dot.is-cluster {
-    transform: scale(1.15);
+  /* Tap-mode pin press feedback (StateMap.tsx's "tap" interaction) — the
+     hover-mode scale above only ever applies on real pointer:fine hover
+     devices, so this is the touch equivalent, firing on actual touch
+     activation rather than a simulated hover. */
+  .cr-map-pin-dot:active {
+    transform: scale(1.4);
   }
   .cr-map-tooltip-wrap {
     pointer-events: none;
@@ -319,6 +357,13 @@
     opacity: 0;
     transition: opacity 0.1s ease;
     pointer-events: none;
+  }
+  /* Tap mode drives this inline (see StateMap.tsx) instead of relying on
+     the generated :hover sibling-selector CSS, so this class alone just
+     needs to stay a valid opacity/pointer-events target either way. */
+  .cr-map-tooltip.is-tap-active {
+    opacity: 1;
+    pointer-events: auto;
   }
   .cr-tooltip-card {
     background: #16281f;

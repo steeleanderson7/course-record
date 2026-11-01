@@ -75,133 +75,198 @@ export default async function LeaderboardPage() {
     ? friends.find((f) => f.id === longestDefense.record.holderUserId)
     : null;
 
-  return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-8 px-8 py-10">
-      <Reveal className="space-y-1">
-        <h1 className="font-heading text-[32px] font-bold">Friend Leaderboard</h1>
-        <p className="text-[15px] text-muted-foreground">
-          {totalRecords} course record{totalRecords === 1 ? "" : "s"} claimed across {group.name}
-        </p>
-      </Reveal>
+  // Built once, rendered twice below — a grid on desktop, a horizontal-
+  // scroll chip row on mobile (matching the mobile leaderboard mockup) —
+  // so the per-achievement logic/copy never has to be kept in sync by hand.
+  const achievementDefs: Array<{
+    icon: React.ComponentType<{ className?: string; strokeWidth?: number; style?: React.CSSProperties }>;
+    label: string;
+    friend: { id: string; name: string; color: string } | null;
+    stat: React.ReactNode;
+  }> = [
+    {
+      icon: Mountain,
+      label: "Most Active Records",
+      friend: mostActiveRecords?.records > 0 ? mostActiveRecords.friend : null,
+      stat: <><AnimatedNumber value={mostActiveRecords?.records ?? 0} /> records held right now</>,
+    },
+    {
+      icon: Target,
+      label: "Best Round Ever",
+      friend: bestRoundFriend ?? null,
+      stat: bestRoundEver ? (
+        <>
+          {bestRoundEver.score}
+          {bestRoundEver.par != null
+            ? ` (${bestRoundEver.score - bestRoundEver.par >= 0 ? "+" : ""}${bestRoundEver.score - bestRoundEver.par})`
+            : ""}{" "}
+          at {bestRoundEver.courseName}
+        </>
+      ) : null,
+    },
+    {
+      icon: TrendingUp,
+      label: "Most Courses Played",
+      friend: mostCoursesPlayed?.played > 0 ? mostCoursesPlayed.friend : null,
+      stat: <><AnimatedNumber value={mostCoursesPlayed?.played ?? 0} /> rounds logged lifetime</>,
+    },
+    {
+      icon: ShieldCheck,
+      label: "Longest Defense",
+      friend: longestDefenseFriend ?? null,
+      stat: longestDefense ? (
+        <>
+          <AnimatedNumber value={longestDefense.days} /> days at {longestDefense.course?.name}
+        </>
+      ) : null,
+    },
+    {
+      icon: Globe2,
+      label: "Territory Control",
+      friend: territoryControl?.states > 0 ? territoryControl.friend : null,
+      stat: <>Holds a record in <AnimatedNumber value={territoryControl?.states ?? 0} /> states</>,
+    },
+    {
+      icon: Star,
+      label: "Top 100 Hunter",
+      friend: top100Hunter?.top100 > 0 ? top100Hunter.friend : null,
+      stat: <><AnimatedNumber value={top100Hunter?.top100 ?? 0} /> marquee courses played</>,
+    },
+  ];
+  const hasAchievements = mostActiveRecords.records > 0 || Boolean(bestRoundEver);
 
-      <Reveal delay={60} className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex items-center gap-3 bg-muted px-6 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          <span className="w-6">#</span>
-          <span className="flex-1">Player</span>
-          <span className="w-20 text-right">Records</span>
-          <span className="w-20 text-right">Played</span>
-          <span className="w-20 text-right">Top 100</span>
-          <span className="w-20 text-right">States</span>
-        </div>
-        {rows.map(({ friend, records: recordCount, played, top100, states }, i) => {
-          const isYou = friend.id === user.id;
-          return (
-            <div
-              key={friend.id}
-              className={`flex items-center gap-3 border-t border-border px-6 py-4 transition-colors ${
-                isYou ? "bg-primary/[0.08]" : "hover:bg-muted/40"
-              }`}
-            >
-              <span
-                className="font-heading w-6 text-xl font-bold"
-                style={{ color: i === 0 ? BRAND_COLORS.gold : BRAND_COLORS.muted }}
+  return (
+    <div className="mx-auto w-full max-w-[1280px] px-4 py-5 md:px-8 md:py-10">
+      {/* Mobile: condensed ranked list (no column headers, just rank/avatar/
+          name/records) + a horizontal-scroll achievement row, matching the
+          mobile leaderboard mockup. Played/Top100/States columns are
+          dropped here — one tap away via each friend's profile — to keep
+          every row glanceable one-handed. */}
+      <div className="space-y-4 md:hidden">
+        <Reveal className="space-y-1">
+          <h1 className="font-heading text-xl font-bold">Leaderboard</h1>
+          <p className="text-[13px] text-muted-foreground">
+            {totalRecords} course record{totalRecords === 1 ? "" : "s"} claimed across {group.name}
+          </p>
+        </Reveal>
+
+        <Reveal delay={60} className="overflow-hidden rounded-xl border border-border bg-card p-1">
+          {rows.map(({ friend, records: recordCount }, i) => {
+            const isYou = friend.id === user.id;
+            return (
+              <div
+                key={friend.id}
+                className={`flex items-center gap-3 rounded-lg px-2.5 py-3 ${
+                  i !== rows.length - 1 ? "border-b border-border" : ""
+                } ${isYou ? "bg-primary/[0.08]" : ""}`}
               >
-                {i + 1}
-              </span>
-              <span className="flex flex-1 items-center gap-2.5">
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                  className="font-heading w-4 shrink-0 text-base font-bold"
+                  style={{ color: i === 0 ? BRAND_COLORS.gold : BRAND_COLORS.muted }}
+                >
+                  {i + 1}
+                </span>
+                <span
+                  className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold"
                   style={{ backgroundColor: friend.color, color: isYou ? BRAND_COLORS.ink : "#fff" }}
                 >
                   {friend.name.slice(0, 1).toUpperCase()}
                 </span>
-                <span className={`text-sm ${isYou ? "font-bold" : "font-semibold"}`}>
+                <span className={`flex-1 truncate text-[14.5px] ${isYou ? "font-bold" : "font-semibold"}`}>
                   {friend.name}
                   {isYou ? " (you)" : ""}
                 </span>
-              </span>
-              <span className="w-20 text-right text-sm font-bold">{recordCount}</span>
-              <span className="w-20 text-right text-sm text-muted-foreground">{played}</span>
-              <span className="w-20 text-right text-sm text-muted-foreground">{top100}</span>
-              <span className="w-20 text-right text-sm text-muted-foreground">{states}</span>
-            </div>
-          );
-        })}
-      </Reveal>
+                <span className="font-heading shrink-0 text-base font-bold">{recordCount}</span>
+              </div>
+            );
+          })}
+        </Reveal>
 
-      {(mostActiveRecords.records > 0 || bestRoundEver) && (
-        <div className="space-y-4">
-          <Reveal delay={120}>
-            <p className="font-heading text-[22px] font-bold">Achievements</p>
-          </Reveal>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <Reveal delay={150}>
-              <AchievementCard
-                icon={Mountain}
-                label="Most Active Records"
-                friend={mostActiveRecords?.records > 0 ? mostActiveRecords.friend : null}
-                stat={<><AnimatedNumber value={mostActiveRecords?.records ?? 0} /> records held right now</>}
-              />
+        {hasAchievements && (
+          <div className="space-y-2.5">
+            <Reveal delay={120}>
+              <p className="font-heading text-[17px] font-bold">Achievements</p>
             </Reveal>
-            <Reveal delay={200}>
-              <AchievementCard
-                icon={Target}
-                label="Best Round Ever"
-                friend={bestRoundFriend ?? null}
-                stat={
-                  bestRoundEver ? (
-                    <>
-                      {bestRoundEver.score}
-                      {bestRoundEver.par != null
-                        ? ` (${bestRoundEver.score - bestRoundEver.par >= 0 ? "+" : ""}${bestRoundEver.score - bestRoundEver.par})`
-                        : ""}{" "}
-                      at {bestRoundEver.courseName}
-                    </>
-                  ) : null
-                }
-              />
-            </Reveal>
-            <Reveal delay={250}>
-              <AchievementCard
-                icon={TrendingUp}
-                label="Most Courses Played"
-                friend={mostCoursesPlayed?.played > 0 ? mostCoursesPlayed.friend : null}
-                stat={<><AnimatedNumber value={mostCoursesPlayed?.played ?? 0} /> rounds logged lifetime</>}
-              />
-            </Reveal>
-            <Reveal delay={300}>
-              <AchievementCard
-                icon={ShieldCheck}
-                label="Longest Defense"
-                friend={longestDefenseFriend ?? null}
-                stat={
-                  longestDefense ? (
-                    <>
-                      <AnimatedNumber value={longestDefense.days} /> days at {longestDefense.course?.name}
-                    </>
-                  ) : null
-                }
-              />
-            </Reveal>
-            <Reveal delay={350}>
-              <AchievementCard
-                icon={Globe2}
-                label="Territory Control"
-                friend={territoryControl?.states > 0 ? territoryControl.friend : null}
-                stat={<>Holds a record in <AnimatedNumber value={territoryControl?.states ?? 0} /> states</>}
-              />
-            </Reveal>
-            <Reveal delay={400}>
-              <AchievementCard
-                icon={Star}
-                label="Top 100 Hunter"
-                friend={top100Hunter?.top100 > 0 ? top100Hunter.friend : null}
-                stat={<><AnimatedNumber value={top100Hunter?.top100 ?? 0} /> marquee courses played</>}
-              />
+            <Reveal delay={150} className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              {achievementDefs.map((def) => (
+                <div key={def.label} className="w-[220px] flex-none">
+                  <AchievementCard {...def} />
+                </div>
+              ))}
             </Reveal>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Desktop: unchanged full ranked table + achievement grid. */}
+      <div className="hidden md:block md:space-y-8">
+        <Reveal className="space-y-1">
+          <h1 className="font-heading text-[32px] font-bold">Friend Leaderboard</h1>
+          <p className="text-[15px] text-muted-foreground">
+            {totalRecords} course record{totalRecords === 1 ? "" : "s"} claimed across {group.name}
+          </p>
+        </Reveal>
+
+        <Reveal delay={60} className="mt-8 overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-3 bg-muted px-6 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            <span className="w-6">#</span>
+            <span className="flex-1">Player</span>
+            <span className="w-20 text-right">Records</span>
+            <span className="w-20 text-right">Played</span>
+            <span className="w-20 text-right">Top 100</span>
+            <span className="w-20 text-right">States</span>
+          </div>
+          {rows.map(({ friend, records: recordCount, played, top100, states }, i) => {
+            const isYou = friend.id === user.id;
+            return (
+              <div
+                key={friend.id}
+                className={`flex items-center gap-3 border-t border-border px-6 py-4 transition-colors ${
+                  isYou ? "bg-primary/[0.08]" : "hover:bg-muted/40"
+                }`}
+              >
+                <span
+                  className="font-heading w-6 text-xl font-bold"
+                  style={{ color: i === 0 ? BRAND_COLORS.gold : BRAND_COLORS.muted }}
+                >
+                  {i + 1}
+                </span>
+                <span className="flex flex-1 items-center gap-2.5">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                    style={{ backgroundColor: friend.color, color: isYou ? BRAND_COLORS.ink : "#fff" }}
+                  >
+                    {friend.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className={`text-sm ${isYou ? "font-bold" : "font-semibold"}`}>
+                    {friend.name}
+                    {isYou ? " (you)" : ""}
+                  </span>
+                </span>
+                <span className="w-20 text-right text-sm font-bold">{recordCount}</span>
+                <span className="w-20 text-right text-sm text-muted-foreground">{played}</span>
+                <span className="w-20 text-right text-sm text-muted-foreground">{top100}</span>
+                <span className="w-20 text-right text-sm text-muted-foreground">{states}</span>
+              </div>
+            );
+          })}
+        </Reveal>
+
+        {hasAchievements && (
+          <div className="mt-8 space-y-4">
+            <Reveal delay={120}>
+              <p className="font-heading text-[22px] font-bold">Achievements</p>
+            </Reveal>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {achievementDefs.map((def, i) => (
+                <Reveal key={def.label} delay={150 + i * 50}>
+                  <AchievementCard {...def} />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

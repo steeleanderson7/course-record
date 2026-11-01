@@ -43,7 +43,7 @@ export function ResultStep({
     : `Nice round at ${course.name}.`;
 
   return (
-    <div className="mx-auto flex w-full max-w-[680px] flex-col gap-7 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-[680px] flex-col gap-5 px-4 py-6 md:gap-7 md:px-6 md:py-10">
       <WizardProgress step={3} label="Complete" />
 
       <Reveal className="flex flex-col items-center gap-3 rounded-2xl bg-sidebar p-10 text-center">
@@ -108,7 +108,7 @@ export function ResultStep({
       <Reveal delay={550} className="flex flex-col items-center gap-3">
         {/* The territory map now lives on the Dashboard itself — one
             button, not two links to the same destination. */}
-        <Button asChild className="w-full max-w-xs">
+        <Button asChild className="min-h-11 w-full max-w-xs">
           <Link href="/dashboard">View Your Territory</Link>
         </Button>
       </Reveal>
