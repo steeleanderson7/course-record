@@ -175,7 +175,7 @@ export function BadgeEarnedOverlay({
             )}
             <button
               onClick={onKeepPlaying}
-              className="p-1.5 text-[13px] font-semibold"
+              className="min-h-11 px-1.5 text-[13px] font-semibold"
               style={{ color: BRAND_COLORS.muted }}
             >
               Keep playing

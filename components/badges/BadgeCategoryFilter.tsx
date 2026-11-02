@@ -24,7 +24,7 @@ export function BadgeCategoryFilter({
           <button
             key={cat}
             onClick={() => setActive(cat)}
-            className={`rounded-full px-4 py-[7px] text-[13px] font-semibold whitespace-nowrap ${
+            className={`min-h-11 rounded-full px-4 text-[13px] font-semibold whitespace-nowrap ${
               active === cat
                 ? "bg-sidebar text-sidebar-foreground"
                 : "border border-input bg-card text-foreground"

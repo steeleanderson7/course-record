@@ -15,8 +15,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Reveal } from "@/components/Reveal";
+import { InitialAvatar } from "@/components/InitialAvatar";
 import { createGroup, redeemInvite, setActiveGroup } from "@/app/actions/groups";
-import { BRAND_COLORS } from "@/lib/colors";
 import type { GroupSummary } from "@/lib/queries";
 
 export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]; currentUserId: string }) {
@@ -70,29 +70,27 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 md:gap-8">
       <div className="flex flex-col gap-4">
         {groups.map((g, i) => (
           <Reveal key={g.id} delay={i * 60}>
             <div
-              className={`hover-lift flex flex-wrap items-center justify-between gap-5 rounded-[14px] border bg-card p-6 ${
+              className={`hover-lift flex flex-col items-start gap-4 rounded-[14px] border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 md:p-6 ${
                 g.isActive ? "border-2 border-primary" : "border-border"
               }`}
             >
               <div className="flex items-center gap-4.5">
                 <div className="flex">
                   {g.members.slice(0, 4).map((m, idx) => (
-                    <div
+                    <InitialAvatar
                       key={m.id}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card text-sm font-bold"
-                      style={{
-                        backgroundColor: m.color,
-                        color: m.id === currentUserId ? BRAND_COLORS.ink : "#fff",
-                        marginLeft: idx === 0 ? 0 : -12,
-                      }}
-                    >
-                      {m.name.slice(0, 1).toUpperCase()}
-                    </div>
+                      name={m.name}
+                      color={m.color}
+                      isSelf={m.id === currentUserId}
+                      className="h-10 w-10"
+                      ringClassName="after:border-2 after:border-card"
+                      style={{ marginLeft: idx === 0 ? 0 : -12 }}
+                    />
                   ))}
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -111,11 +109,16 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
                 </div>
               </div>
               {g.isActive ? (
-                <a href="/friends" className="text-sm font-bold hover:text-primary">
+                <a href="/friends" className="flex min-h-11 items-center text-sm font-bold hover:text-primary">
                   View group →
                 </a>
               ) : (
-                <Button variant="outline" onClick={() => handleSwitch(g.id)} disabled={!!loading}>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSwitch(g.id)}
+                  disabled={!!loading}
+                  className="min-h-11 w-full sm:w-auto"
+                >
                   {loading === g.id ? "Switching..." : "Switch to this group"}
                 </Button>
               )}
@@ -124,10 +127,10 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
         ))}
       </div>
 
-      <Reveal delay={groups.length * 60 + 60} className="flex flex-wrap gap-4">
+      <Reveal delay={groups.length * 60 + 60} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="hover-lift py-3 text-sm">+ Create a New Group</Button>
+            <Button className="hover-lift min-h-11 w-full py-3 text-sm sm:w-auto">+ Create a New Group</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -145,7 +148,7 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <DialogFooter>
-              <Button onClick={handleCreate} disabled={!groupName || !!loading} className="w-full">
+              <Button onClick={handleCreate} disabled={!groupName || !!loading} className="min-h-11 w-full">
                 {loading === "create" ? "Creating..." : "Create group"}
               </Button>
             </DialogFooter>
@@ -154,7 +157,7 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
 
         <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="hover-lift py-3 text-sm">
+            <Button variant="outline" className="hover-lift min-h-11 w-full py-3 text-sm sm:w-auto">
               Join a Group
             </Button>
           </DialogTrigger>
@@ -174,7 +177,7 @@ export function GroupsClient({ groups, currentUserId }: { groups: GroupSummary[]
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <DialogFooter>
-              <Button onClick={handleJoin} disabled={!inviteCode || !!loading} className="w-full">
+              <Button onClick={handleJoin} disabled={!inviteCode || !!loading} className="min-h-11 w-full">
                 {loading === "join" ? "Joining..." : "Join group"}
               </Button>
             </DialogFooter>

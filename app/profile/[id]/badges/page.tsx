@@ -54,14 +54,14 @@ export default async function BadgeCollectionPage({
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-9 px-8 py-10">
+    <div className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-5 md:space-y-9 md:px-8 md:py-10">
       <div className="flex flex-col gap-1.5">
         <Link href={`/profile/${id}`} className="text-[13px] font-semibold text-muted-foreground hover:text-primary">
           ← Back to profile
         </Link>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-[32px] font-bold">Badge Collection</h1>
-          <span className="text-[15px] text-muted-foreground">
+          <h1 className="font-heading text-2xl font-bold md:text-[32px]">Badge Collection</h1>
+          <span className="text-sm text-muted-foreground md:text-[15px]">
             {totalEarned} of {TOTAL_BADGES} badges earned
           </span>
         </div>
@@ -89,12 +89,22 @@ export default async function BadgeCollectionPage({
 
 function FamilyCard({ family }: { family: FamilyProgress }) {
   return (
-    <div id={`family-${family.familyId}`} className="flex scroll-mt-6 flex-col gap-3.5 rounded-2xl border border-border bg-card p-6">
+    <div
+      id={`family-${family.familyId}`}
+      className="flex scroll-mt-6 flex-col gap-3.5 rounded-2xl border border-border bg-card p-4 md:p-6"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-heading text-[17px] font-bold">{family.familyTitle}</span>
         <span className="text-xs font-bold text-muted-foreground">{family.earnedCount}/5 earned</span>
       </div>
-      <div className="flex flex-wrap gap-4.5">
+      {/* 5 tiers is a fixed, always-complete set meant to be seen at a
+          glance (unlike the open-ended chip rows elsewhere that use
+          horizontal scroll) — shrunk to fit on a phone instead of
+          scrolling, so Diamond never ends up hidden off-screen. The
+          overflow-x-auto is a silent safety net only, not the intended
+          interaction: the sizes below are chosen to fit a 375px viewport
+          without ever needing it. */}
+      <div className="flex gap-1.5 overflow-x-auto md:gap-4.5">
         {family.tiers.map((tier) => (
           <TierDot key={tier.tier} tier={tier} icon={family.icon} />
         ))}
@@ -106,8 +116,8 @@ function FamilyCard({ family }: { family: FamilyProgress }) {
 
 function TierDot({ tier, icon }: { tier: TierProgress; icon: string }) {
   return (
-    <div className="flex w-[92px] flex-col items-center gap-1.5 text-center">
-      <svg width="64" height="64" viewBox="0 0 56 56" aria-hidden="true">
+    <div className="flex w-14 shrink-0 flex-col items-center gap-1.5 text-center md:w-[92px]">
+      <svg viewBox="0 0 56 56" aria-hidden="true" className="h-11 w-11 md:h-16 md:w-16">
         <circle
           cx={28}
           cy={28}
@@ -122,13 +132,13 @@ function TierDot({ tier, icon }: { tier: TierProgress; icon: string }) {
       </svg>
       <div className="flex flex-col gap-px">
         <span
-          className="text-[10px] font-bold tracking-wide uppercase"
+          className="text-[9px] font-bold tracking-wide uppercase md:text-[10px]"
           style={{ color: tier.earned ? tier.ringColor : "#B8B2A0" }}
         >
           {tier.tierName}
         </span>
         <span
-          className="text-xs leading-tight font-semibold"
+          className="text-[11px] leading-tight font-semibold md:text-xs"
           style={{ color: tier.earned ? BRAND_COLORS.ink : "#9AA69D" }}
         >
           {tier.title}

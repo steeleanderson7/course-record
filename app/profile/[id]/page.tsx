@@ -1,14 +1,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Users, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/StatTile";
 import { LevelProgress } from "@/components/LevelProgress";
 import { Reveal } from "@/components/Reveal";
+import { InitialAvatar } from "@/components/InitialAvatar";
 import { requireActiveGroup } from "@/lib/supabase/guards";
 import { getFullProfile, getUserGroupsDetailed } from "@/lib/queries";
 import { BADGE_COLLECTION, type BadgeStats } from "@/lib/badges";
-import { BRAND_COLORS } from "@/lib/colors";
+import { BRAND_COLORS, colorForUser } from "@/lib/colors";
 
 export default async function ProfilePage({
   params,
@@ -44,35 +45,67 @@ export default async function ProfilePage({
   };
   const earnedCount = BADGE_COLLECTION.filter((b) => b.earned(badgeStats)).length;
 
-  const initial = profile.display_name.slice(0, 1).toUpperCase();
   const memberSince = new Date(profile.created_at).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
   });
+  // The hero avatar previously always rendered generic `bg-primary` instead
+  // of the viewed person's actual canonical color — inconsistent with every
+  // other screen's friend color-coding. `colorForUser` is a pure function
+  // (no extra query), so this is a free correctness fix while rebuilding
+  // the hero for mobile anyway.
+  const heroColor = colorForUser(id, user.id);
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-7 px-8 py-10">
-      {/* Hero */}
-      <Reveal className="flex items-center justify-between gap-6 rounded-2xl bg-sidebar p-10">
-        <div className="flex items-center gap-5">
-          <Avatar className="h-[72px] w-[72px] ring-2 ring-primary/40 ring-offset-2 ring-offset-sidebar">
-            <AvatarFallback className="bg-primary text-2xl font-bold text-primary-foreground">
-              {initial}
-            </AvatarFallback>
-          </Avatar>
+    <div className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-5 md:space-y-7 md:px-8 md:py-10">
+      {/* Hero — single responsive tree: stacked on phones (avatar+name row,
+          then a full-width Edit Profile button below), a single row from
+          `sm:` up, matching every other reworked page's container rhythm. */}
+      <Reveal className="flex flex-col items-start gap-5 rounded-2xl bg-sidebar p-6 sm:flex-row sm:items-center sm:justify-between md:p-10">
+        <div className="flex items-center gap-4 md:gap-5">
+          <InitialAvatar
+            name={profile.display_name}
+            color={heroColor}
+            isSelf={isSelf}
+            className="h-14 w-14 ring-2 ring-primary/40 ring-offset-2 ring-offset-sidebar md:h-[72px] md:w-[72px]"
+            textClassName="text-lg md:text-2xl"
+          />
           <div>
-            <p className="font-heading text-[26px] font-bold text-sidebar-foreground">
+            <p className="font-heading text-xl font-bold text-sidebar-foreground md:text-[26px]">
               {profile.display_name}
             </p>
-            <p className="text-sm text-sidebar-foreground/80">Member since {memberSince}</p>
+            <p className="text-xs text-sidebar-foreground/80 md:text-sm">Member since {memberSince}</p>
           </div>
         </div>
         {isSelf && (
-          <Button variant="outline" className="border-sidebar-foreground/40 text-sidebar-foreground hover:bg-sidebar-accent">
+          <Button
+            variant="outline"
+            className="min-h-11 w-full bg-transparent border-sidebar-foreground/40 text-sidebar-foreground hover:bg-sidebar-accent sm:w-auto"
+          >
             Edit Profile
           </Button>
         )}
       </Reveal>
+
+      {/* Friends — mobile's only entry point to the Friends/Groups area now
+          that the bottom tab bar replaced the desktop NavLinks row below
+          `md`. GroupSwitcherPill (in NavBar) still reaches /groups from
+          anywhere; this is specifically the missing /friends path. Shown
+          regardless of whose profile you're viewing — "my friends" is a
+          navigation destination, not profile content. */}
+      <Link
+        href="/friends"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 md:hidden"
+      >
+        <div className="flex items-center gap-3">
+          <Users className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+          <div>
+            <p className="text-sm font-bold">Friends</p>
+            <p className="text-xs text-muted-foreground">{group.name}</p>
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </Link>
 
       {/* Achievement level */}
       <LevelProgress points={lifetime.points} />
@@ -99,7 +132,7 @@ export default async function ProfilePage({
 
       {/* Your standing across groups — self-view only */}
       {isSelf && groupStandings.length > 0 && (
-        <Reveal delay={240} className="flex flex-col gap-1 rounded-xl border border-border bg-card p-6">
+        <Reveal delay={240} className="flex flex-col gap-1 rounded-xl border border-border bg-card p-4 md:p-6">
           <p className="font-heading text-lg font-bold">Your Standing Across Groups</p>
           <p className="mb-2 text-xs text-muted-foreground">
             {lifetime.recordsHeld} total records across {groupStandings.length} group
